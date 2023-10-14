@@ -6,14 +6,13 @@ from typing import Tuple
 import rospy
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32MultiArray, Bool
-
-from topic_names import (WAYPOINT_TOPIC, 
-			 			REACHED_GOAL_TOPIC)
 from ros_data import ROSData
 from utils import clip_angle
 
 # CONSTS
-CONFIG_PATH = "../config/robot.yaml"
+WAYPOINT_TOPIC = "/gnm/waypoint"
+REACHED_GOAL_TOPIC = "/gnm/reached_goal"
+CONFIG_PATH = "../config/spot.yaml"
 with open(CONFIG_PATH, "r") as f:
 	robot_config = yaml.safe_load(f)
 MAX_V = robot_config["max_v"]
@@ -65,7 +64,7 @@ def pd_controller(waypoint: np.ndarray) -> Tuple[float]:
 def callback_drive(waypoint_msg: Float32MultiArray):
 	"""Callback function for the waypoint subscriber"""
 	global vel_msg
-	print("seting waypoint")
+	print("setting waypoint")
 	waypoint.set(waypoint_msg.data)
 	
 	
