@@ -1,9 +1,9 @@
-import wandb
+#import wandb
 import os
 import numpy as np
 import yaml
 from typing import List, Optional, Dict
-from prettytable import PrettyTable
+#from prettytable import PrettyTable
 import tqdm
 import itertools
 
@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 from torch.optim import Adam
 from torchvision import transforms
 import torchvision.transforms.functional as TF
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 # LOAD DATA CONFIG
 with open(os.path.join(os.path.dirname(__file__), "../data/data_config.yaml"), "r") as f:

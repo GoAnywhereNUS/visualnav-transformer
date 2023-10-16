@@ -16,10 +16,12 @@ import itertools
 from collections import deque
 
 from utils import msg_to_pil, to_numpy, transform_images, load_model
+from vint_train.training.train_utils import get_action
+from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 
-MODEL_WEIGHTS_PATH = "../model_weights/vint_release.pth"
+MODEL_WEIGHTS_PATH = "../model_weights"
 ROBOT_CONFIG_PATH ="../config/spot.yaml"
-MODEL_CONFIG_PATH = "../../train/config/vint.yaml"
+MODEL_CONFIG_PATH = "../config/models.yaml"
 with open(ROBOT_CONFIG_PATH, "r") as f:
     robot_config = yaml.safe_load(f)
 MAX_V = robot_config["max_v"]
@@ -28,21 +30,13 @@ RATE = robot_config["frame_rate"]
 IMAGE_TOPIC = "/rs_mid/camera/image_raw"
 ODOM_TOPIC = "/spot/odometry"
 
-model_params = None
-with open(MODEL_CONFIG_PATH, "r") as f:
-    model_params = yaml.safe_load(f)
-
-model_params["min_linear_vel"] = 0.05
-model_params["min_angular_vel"] = 0.03
-print(model_params)
-
 # GLOBALS
 odom_queue = deque(maxlen=30) # Buffer of past odometry messages (assuming 30Hz sim)
 curr_sensor_msg = None
 
-window_context_queue = deque(maxlen=model_params["context_size"] + 1) # Sensor images used directly as context if only using latest time window
-zupt_queue = deque(maxlen=model_params["context_size"] + 1) # Flags indicating if robot has zero velocity, for each context queue element
-moving_context_queue = deque(maxlen=model_params["context_size"] + 1) # Last sequence of non-zero velocity sensor images
+window_context_queue = None # Sensor images used directly as context if only using latest time window
+zupt_queue = None # Flags indicating if robot has zero velocity, for each context queue element
+moving_context_queue = None # Last sequence of non-zero velocity sensor images
 
 tlx, tly = -1, -1
 brx, bry = -1, -1
@@ -90,7 +84,7 @@ def odom_callback(msg):
 
 # Mouse callback function to select rectangular region
 def draw_rectangle(event, x, y, flags, param):
-    global tlx, tly, brx, bry, movex, movey, history_queue, image_crop, drawing
+    global tlx, tly, brx, bry, movex, movey, curr_sensor_msg, image_crop, drawing
     if event == cv2.EVENT_MOUSEMOVE:
         movex, movey = x, y
     elif event == cv2.EVENT_LBUTTONDOWN:
@@ -106,8 +100,8 @@ def draw_rectangle(event, x, y, flags, param):
         if tly < y: tly, bry = tly, y
         else: tly, bry = y, tly
 
-        if len(history_queue) > 1:
-            img = np.asarray(history_queue[-1])
+        if curr_sensor_msg is not None:
+            img = np.asarray(msg_to_pil(curr_sensor_msg))
             cv2.namedWindow("Selected")
             cv2.imshow("Selected", img[tly:bry, tlx:brx])
             
@@ -148,19 +142,47 @@ def bbox2crop(img, tlx, tly, brx, bry):
 
 
 def main(args: argparse.Namespace):
+    # Load model params
+    with open(MODEL_CONFIG_PATH, "r") as f:
+        model_paths = yaml.safe_load(f)
+    
+    model_config_path = model_paths[args.model]["config_path"]
+    with open(model_config_path, "r") as f:
+        model_params = yaml.safe_load(f)
+    
+    model_params["min_linear_vel"] = 0.05
+    model_params["min_angular_vel"] = 0.03
+    print(model_params)
+
+    # Initialise globals that require model_params
+    global window_context_queue, moving_context_queue, zupt_queue
+    window_context_queue = deque(maxlen=model_params["context_size"] + 1) # Sensor images used directly as context if only using latest time window
+    zupt_queue = deque(maxlen=model_params["context_size"] + 1) # Flags indicating if robot has zero velocity, for each context queue element
+    moving_context_queue = deque(maxlen=model_params["context_size"] + 1) # Last sequence of non-zero velocity sensor images
+
     # Load model weights
-    if os.path.exists(MODEL_WEIGHTS_PATH):
-        print(f"Loading model from {MODEL_WEIGHTS_PATH}")
+    ckpth_path = model_paths[args.model]["ckpt_path"]
+    if os.path.exists(ckpth_path):
+        print(f"Loading model from {ckpth_path}")
     else:
-        raise FileNotFoundError(f"Model weights not found at {MODEL_WEIGHTS_PATH}")
+        raise FileNotFoundError(f"Model weights not found at {ckpth_path}")
     model = load_model(
-            MODEL_WEIGHTS_PATH, 
+            ckpth_path, 
             model_params, 
             device,
     )
     model.eval()
 
     print("Loaded model of size: ", sum(p.numel() for p in model.parameters()))
+
+    if model_params["model_type"] == "nomad":
+        num_diffusion_iters = model_params["num_diffusion_iters"]
+        noise_scheduler = DDPMScheduler(
+            num_train_timesteps=model_params["num_diffusion_iters"],
+            beta_schedule='squaredcos_cap_v2',
+            clip_sample=True,
+            prediction_type='epsilon'
+        )
 
     global IMAGE_TOPIC, ODOM_TOPIC
     if args.sim:
@@ -180,7 +202,7 @@ def main(args: argparse.Namespace):
     debug_avg_dist_pub = rospy.Publisher("/dbg/avg", Float32, queue_size=1)
     debug_min_dist_pub = rospy.Publisher("/dbg/min", Float32, queue_size=1)
 
-    global image_crop, window_context_queue, moving_context_queue, zupt_queue, dist_queue, min_dist
+    global image_crop, dist_queue, min_dist
     cv2.namedWindow("Viz")
     cv2.setMouseCallback("Viz", draw_rectangle)
 
@@ -216,27 +238,79 @@ def main(args: argparse.Namespace):
             
             # If there is an image crop and valid embodiment context, run GNM
             if image_crop is not None and len(context_queue) == model_params["context_size"] + 1:
+                pil_crop = PILImage.fromarray(np.uint8(image_crop))
+
+                if model_params["model_type"] == "nomad": # NoMaD
+                    obs_images = transform_images(context_queue, model_params["image_size"], center_crop=False)
+                    obs_images = torch.cat(torch.split(obs_images, 3, dim=1), dim=1).to(device)
+                    mask = torch.zeros(1).long().to(device)
+                    goal_image = transform_images(pil_crop, model_params["image_size"], center_crop=False).to(device)
+
+                    start_time = time.time()
+                    obsgoal_cond = model('vision_encoder', obs_img=obs_images.repeat(len(goal_image), 1, 1, 1), goal_img=goal_image, input_goal_mask=mask.repeat(len(goal_image)))
+                    dists = model("dist_pred_net", obsgoal_cond=obsgoal_cond)
+                    dists = to_numpy(dists.flatten())
+
+                    with torch.no_grad():
+                        # encoder vision features
+                        if len(obsgoal_cond.shape) == 2:
+                            obs_cond = obsgoal_cond.repeat(args.num_samples, 1)
+                        else:
+                            obs_cond = obsgoal_cond.repeat(args.num_samples, 1, 1)
+
+                        # initialize action from Gaussian noise
+                        noisy_action = torch.randn(
+                            (args.num_samples, model_params["len_traj_pred"], 2), device=device)
+                        naction = noisy_action
+
+                        # init scheduler
+                        noise_scheduler.set_timesteps(num_diffusion_iters)
+
+                        for k in noise_scheduler.timesteps[:]:
+                            # predict noise
+                            noise_pred = model(
+                                'noise_pred_net',
+                                sample=naction,
+                                timestep=k,
+                                global_cond=obs_cond
+                            )
+                            # inverse diffusion step (remove noise)
+                            naction = noise_scheduler.step(
+                                model_output=noise_pred,
+                                timestep=k,
+                                sample=naction
+                            ).prev_sample
+
+                    print("time elapsed:", time.time() - start_time)
+                    naction = to_numpy(get_action(naction))
+                    #sampled_actions_msg = Float32MultiArray()
+                    #sampled_actions_msg.data = np.concatenate((np.array([0]), naction.flatten()))
+                    #print("published sampled actions")
+                    #sampled_actions_pub.publish(sampled_actions_msg)
+                    naction = naction[0] 
+                    chosen_waypoint = naction[args.waypoint]
+
+                # ViNT
+                else: 
                     # rospy.loginfo("Received crop!")
-                    pil_crop = PILImage.fromarray(np.uint8(image_crop))
                     transf_goal_img = transform_images(pil_crop, model_params["image_size"]).to(device)
                     transf_obs_img = transform_images(context_queue, model_params["image_size"]).to(device)
-                    start = time.time()
+                    start_time = time.time()
                     dist, waypoint = model(transf_obs_img, transf_goal_img) 
                     dist = to_numpy(dist[0])
-                    waypoint = to_numpy(waypoint[0])
                     dist_queue.append(dist[0])
-                    
-                    print(">>> Took: ", time.time() - start)
-
-                    waypoint_msg = Float32MultiArray()
+                    waypoint = to_numpy(waypoint[0])
                     chosen_waypoint = waypoint[args.waypoint]
-                    if model_params["normalize"]:
-                        chosen_waypoint[:2] *= (MAX_V / RATE)
-                    print(chosen_waypoint)
-                    # TODO: Should we separately scale chosen waypoint with MAX_V and MAX_W?
+                    print("time elapsed:", time.time() - start_time)
 
-                    waypoint_msg.data = chosen_waypoint
-                    waypoint_pub.publish(waypoint_msg)
+                if model_params["normalize"]:
+                    chosen_waypoint[:2] *= (MAX_V / RATE)
+                waypoint_msg = Float32MultiArray()
+                print(chosen_waypoint)
+                # TODO: Should we separately scale chosen waypoint with MAX_V and MAX_W?
+
+                waypoint_msg.data = chosen_waypoint
+                waypoint_pub.publish(waypoint_msg)
 
         # Check if we can stop
         if args.auto_stop and len(dist_queue) > 1:
@@ -253,7 +327,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         "-m",
-        default="vint",
+        default="nomad",
         type=str,
         help="model name (hint: check ../config/models.yaml) (default: large_gnm)",
     )
@@ -266,8 +340,15 @@ if __name__ == "__main__":
         how many waypoints your model predicts) (default: 2)""",
     )
     parser.add_argument(
+        "--num-samples",
+        "-n",
+        default=1,
+        type=int,
+        help=f"Number of actions sampled from the exploration model (default: 8)",
+    )
+    parser.add_argument(
         "--only_moving_contexts",
-        default=False,
+        default=True,
         type=bool,
         help=f"""If true, the context will be the last contiguous sequence of
         images where the robot's velocity is non-zero. Otherwise it is the most
@@ -280,10 +361,10 @@ if __name__ == "__main__":
         help="Running in iGibson simulator"
     )
     parser.add_argument(
-            "--auto_stop",
-            default=True,
-            type=bool,
-            help="If true, terminate when distance is small enough, otherwise keep going."
+        "--auto_stop",
+        default=True,
+        type=bool,
+        help="If true, terminate when distance is small enough, otherwise keep going."
     )
     args = parser.parse_args()
     main(args)

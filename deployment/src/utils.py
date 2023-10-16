@@ -2,7 +2,6 @@
 import os
 import sys
 import io
-sys.path.append("../../train")
 
 # ROS
 from sensor_msgs.msg import Image
