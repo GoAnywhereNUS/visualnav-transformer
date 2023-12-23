@@ -22,6 +22,7 @@ import numpy as np
 import argparse
 import yaml
 import time
+import cv2
 
 # UTILS
 from topic_names import (IMAGE_TOPIC,
@@ -32,13 +33,18 @@ from topic_names import (IMAGE_TOPIC,
 # CONSTANTS
 TOPOMAP_IMAGES_DIR = "../topomaps/images"
 MODEL_WEIGHTS_PATH = "../model_weights"
-ROBOT_CONFIG_PATH ="../config/robot.yaml"
+#ROBOT_CONFIG_PATH ="../config/robot.yaml"
+ROBOT_CONFIG_PATH = "../config/spot.yaml"
 MODEL_CONFIG_PATH = "../config/models.yaml"
 with open(ROBOT_CONFIG_PATH, "r") as f:
     robot_config = yaml.safe_load(f)
 MAX_V = robot_config["max_v"]
 MAX_W = robot_config["max_w"]
 RATE = robot_config["frame_rate"] 
+IMAGE_TOPIC = "/rs_mid/color/image_raw"
+WAYPOINT_TOPIC = "/gnm/waypoint"
+
+print("Publishing to:", IMAGE_TOPIC, WAYPOINT_TOPIC, SAMPLED_ACTIONS_TOPIC)
 
 # GLOBALS
 context_queue = []
@@ -105,6 +111,7 @@ def main(args: argparse.Namespace):
     else:
         goal_node = args.goal_node
     reached_goal = False
+    cv2.namedWindow("Live/Subgoal")
 
      # ROS
     rospy.init_node("EXPLORATION", anonymous=False)
@@ -212,16 +219,30 @@ def main(args: argparse.Namespace):
                 distances, waypoints = model(batch_obs_imgs, batch_goal_data)
                 distances = to_numpy(distances)
                 waypoints = to_numpy(waypoints)
+
                 # look for closest node
-                closest_node = np.argmin(distances)
+                closest_node_in_radius = np.argmin(distances)
+
                 # chose subgoal and output waypoints
-                if distances[closest_node] > args.close_threshold:
-                    chosen_waypoint = waypoints[closest_node][args.waypoint]
-                    sg_img = topomap[start + closest_node]
+                if distances[closest_node_in_radius] > args.close_threshold:
+                    chosen_waypoint = waypoints[closest_node_in_radius][args.waypoint]
+                    sg_img = topomap[start + closest_node_in_radius]
                 else:
                     chosen_waypoint = waypoints[min(
-                        closest_node + 1, len(waypoints) - 1)][args.waypoint]
-                    sg_img = topomap[start + min(closest_node + 1, len(waypoints) - 1)]     
+                        closest_node_in_radius + 1, len(waypoints) - 1)][args.waypoint]
+                    sg_img = topomap[start + min(closest_node_in_radius + 1, len(waypoints) - 1)]
+
+                closest_node = start + closest_node_in_radius
+                closest_node_image = np.array(topomap[closest_node].resize((320, 240)))
+                live_image = context_queue[-1].resize((320, 240)) 
+                combined_image = np.concatenate((np.array(live_image), closest_node_image), axis=1)
+                cv2.putText(combined_image, str(closest_node) + "/" + str(len(topomap)-1), (340,20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0))
+                cv2.imshow('Live/Subgoal', combined_image)
+                if cv2.waitKey(10) == ord('q'):
+                    print("Shutting down...")
+                    import sys
+                    sys.exit(0)
+
         # RECOVERY MODE
         if model_params["normalize"]:
             chosen_waypoint[:2] *= (MAX_V / RATE)  
@@ -241,7 +262,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         "-m",
-        default="nomad",
+        default="vint",
         type=str,
         help="model name (only nomad is supported) (hint: check ../config/models.yaml) (default: nomad)",
     )

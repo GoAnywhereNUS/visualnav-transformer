@@ -27,7 +27,7 @@ with open(ROBOT_CONFIG_PATH, "r") as f:
 MAX_V = robot_config["max_v"]
 MAX_W = robot_config["max_w"]
 RATE = robot_config["frame_rate"]
-IMAGE_TOPIC = "/rs_mid/camera/image_raw"
+IMAGE_TOPIC = "/rs_mid/color/image_raw"
 ODOM_TOPIC = "/spot/odometry"
 
 # GLOBALS
@@ -208,9 +208,13 @@ def main(args: argparse.Namespace):
 
     while not rospy.is_shutdown():
         if curr_sensor_msg is not None:
+            print("Curr sensor message")
             curr_im_pil = msg_to_pil(curr_sensor_msg)
             curr_im_array = np.asarray(curr_im_pil)
             curr_im_odom = find_closest_odom(curr_sensor_msg.header.stamp)
+            if curr_im_odom is None:
+                rospy.loginfo("Waiting for odom...")
+                continue
             curr_im_zupt = (abs(curr_im_odom.twist.twist.linear.x) < model_params["min_linear_vel"]
                             and abs(curr_im_odom.twist.twist.angular.z) < model_params["min_angular_vel"])
 
@@ -222,8 +226,11 @@ def main(args: argparse.Namespace):
                 break
             if cv2.waitKey(1) == ord('s'):
                 image_crop = None
+            if cv2.waitKey(1) == ord('p'):
+                pass
 
             # Update context_queue
+            print("Updating context queue")
             window_context_queue.append(curr_im_pil)
             zupt_queue.append(curr_im_zupt)
 
@@ -292,7 +299,7 @@ def main(args: argparse.Namespace):
 
                 # ViNT
                 else: 
-                    # rospy.loginfo("Received crop!")
+                    #rospy.loginfo("Received crop!")
                     transf_goal_img = transform_images(pil_crop, model_params["image_size"]).to(device)
                     transf_obs_img = transform_images(context_queue, model_params["image_size"]).to(device)
                     start_time = time.time()
@@ -306,7 +313,7 @@ def main(args: argparse.Namespace):
                 if model_params["normalize"]:
                     chosen_waypoint[:2] *= (MAX_V / RATE)
                 waypoint_msg = Float32MultiArray()
-                print(chosen_waypoint)
+                print(chosen_waypoint, dist)
                 # TODO: Should we separately scale chosen waypoint with MAX_V and MAX_W?
 
                 waypoint_msg.data = chosen_waypoint
@@ -327,7 +334,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         "-m",
-        default="nomad",
+        default="vint",
         type=str,
         help="model name (hint: check ../config/models.yaml) (default: large_gnm)",
     )
@@ -348,7 +355,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--only_moving_contexts",
-        default=True,
+        default=False,
         type=bool,
         help=f"""If true, the context will be the last contiguous sequence of
         images where the robot's velocity is non-zero. Otherwise it is the most
@@ -356,7 +363,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--sim",
-        default=True,
+        default=False,
         type=bool,
         help="Running in iGibson simulator"
     )
