@@ -1,3 +1,6 @@
+.DS_Store
+.idea/
+
 train/logs/*
 train/datasets/*
 train/vint_train/data/data_splits/*

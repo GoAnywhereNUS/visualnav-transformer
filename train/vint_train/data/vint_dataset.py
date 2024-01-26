@@ -243,6 +243,10 @@ class ViNT_Dataset(Dataset):
         positions = traj_data["position"][start_index:end_index:self.waypoint_spacing]
         goal_pos = traj_data["position"][min(goal_time, len(traj_data["position"]) - 1)]
 
+        yaw = np.array(yaw)
+        positions = np.array(positions)
+        goal_pos = np.array(goal_pos)
+
         if len(yaw.shape) == 2:
             yaw = yaw.squeeze(1)
 
@@ -258,7 +262,6 @@ class ViNT_Dataset(Dataset):
         goal_pos = to_local_coords(goal_pos, positions[0], yaw[0])
 
         assert waypoints.shape == (self.len_traj_pred + 1, 2), f"{waypoints.shape} and {(self.len_traj_pred + 1, 2)} should be equal"
-
         if self.learn_angle:
             yaw = yaw[1:] - yaw[0]
             actions = np.concatenate([waypoints[1:], yaw[:, None]], axis=-1)
@@ -314,7 +317,6 @@ class ViNT_Dataset(Dataset):
             context = [(f_curr, t) for t in context_times]
         else:
             raise ValueError(f"Invalid context type {self.context_type}")
-
         obs_image = torch.cat([
             self._load_image(f, t) for f, t in context
         ])

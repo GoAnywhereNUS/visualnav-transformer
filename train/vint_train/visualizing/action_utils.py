@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 from typing import Optional, List
-#import wandb
+import wandb
 import yaml
 import torch
 import torch.nn as nn

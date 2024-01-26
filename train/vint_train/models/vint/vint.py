@@ -15,8 +15,8 @@ class ViNT(BaseModel):
         obs_encoder: Optional[str] = "efficientnet-b0",
         obs_encoding_size: Optional[int] = 512,
         late_fusion: Optional[bool] = False,
-        mha_num_attention_heads: Optional[int] = 2,
-        mha_num_attention_layers: Optional[int] = 2,
+        mha_num_attention_heads: Optional[int] = 4,
+        mha_num_attention_layers: Optional[int] = 4,
         mha_ff_dim_factor: Optional[int] = 4,
     ) -> None:
         """

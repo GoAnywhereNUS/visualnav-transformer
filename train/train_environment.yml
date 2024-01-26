@@ -1,4 +1,4 @@
-name: nomad_train
+name: gnm_train
 channels:
 - defaults
 - pytorch

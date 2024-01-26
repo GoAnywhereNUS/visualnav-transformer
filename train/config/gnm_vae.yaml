@@ -1,7 +1,7 @@
 # NOTE: this model uses private datasets
 
-project_name: gnm
-run_name: gnm
+project_name: gnm_vae_1e-6
+run_name: gnm_vae_1e-6
 
 # training setup
 use_wandb: True # set to false if you don't want to log to wandb
@@ -16,7 +16,7 @@ optimizer: adam
 seed: 0
 
 # model params
-model_type: gnm
+model_type: gnm_vae
 obs_encoding_size: 1024
 goal_encoding_size: 1024
 
@@ -29,6 +29,9 @@ context_size: 5
 
 # tradeoff between action and distance prediction loss
 alpha: 0.5
+
+#tradeoff between task loss and kl divergence
+beta: 0.000001
 
 # distance bounds for distance and action and distance predictions 
 distance:

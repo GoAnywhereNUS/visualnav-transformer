@@ -31,15 +31,19 @@ def main(args: argparse.Namespace):
 
     for frame_id, datum in zip(frame_ids, data):
         if frame_id - prev_id > MAX_SKIP_FRAMES:
-            split_trajectories.append(traj)
-            traj = []
+            # filter short trajectory
+            if len(traj) < 10:
+                traj = []
+            else:
+                split_trajectories.append(traj)
+                traj = []
 
         if float((frame_id - last_frame_saved)) / LOGGING_FRAME_RATE > sample_time:
             traj.append((frame_id, datum))
             prev_id = frame_id
 
-        if len(split_trajectories) == 3:
-            break
+        # if len(split_trajectories) == 3:
+        #     break
 
     print("Found", len(split_trajectories), "trajectories!")
 
@@ -48,7 +52,7 @@ def main(args: argparse.Namespace):
     image_path = os.path.join(args.input_dir, CAMERA_FOLDER)
     for traj_i, traj in enumerate(split_trajectories):
         output_folder = os.path.join(args.output_dir, 't{0:05d}'.format(traj_i))
-        os.mkdir(output_folder)
+        os.makedirs(output_folder)
         traj_data = {
             "position": [], 
             "yaw": [], 
@@ -105,12 +109,12 @@ if __name__ == "__main__":
         "-i",
         type=str,
         help="path of the datasets with rosbags",
-        default="/data/home/joel/storage/inet_data",
+        default="/home/zishuo/inet_data/",
     )
     parser.add_argument(
         "--output-dir",
         "-o",
-        default="/data/home/joel/storage/inet_gnm_data",
+        default="/home/zishuo/inet_gnm_data",
         type=str,
         help="path for processed dataset (default: ../datasets/tartan_drive/)",
     )
