@@ -102,8 +102,8 @@ datasets:
   #   negative_mining: True
   inet_gnm_data:
     data_folder: /home/zishuo/inet_gnm_data/
-    train: /home/zishuo/GNM/inet_mid_gnm/inet_gnm_data/train/
-    test: /home/zishuo/GNM/inet_mid_gnm/inet_gnm_data/test/
+    train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/inet_gnm_data/train/
+    test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/inet_gnm_data/test/
     end_slack: 0
     goals_per_obs: 1
     negative_mining: True

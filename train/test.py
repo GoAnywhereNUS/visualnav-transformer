@@ -67,9 +67,6 @@ ckpt_path = './logs/gnm_vae_1e-6/gnm_vae_1e-6_2024_01_23_14_25_57/15.pth'
 # ckpt_path = './gnm.pth'
 checkpoint = torch.load(ckpt_path)
 
-
-
-
 try:
     model.load_state_dict(checkpoint['model'].module.state_dict())
 except:
@@ -92,7 +89,7 @@ for start_id in range(170, 270, 1):
             dist, action, mu, logvar = model(obs, goal)
             kl = torch.mean(-0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1), dim=0)
             print(kl)
-            print(start_id )
+            print(start_id)
         print(dist)
         # print(action)
 
