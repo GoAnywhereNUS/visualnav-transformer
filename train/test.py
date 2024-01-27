@@ -62,10 +62,9 @@ checkpoint = torch.load(ckpt_path)
 # ckpt_path = './vint.pth'
 # checkpoint = torch.load(ckpt_path)
 
-model = GNM_VAE().to(device)
-ckpt_path = './logs/gnm_vae_1e-6/gnm_vae_1e-6_2024_01_23_14_25_57/15.pth'
-# ckpt_path = './gnm.pth'
-checkpoint = torch.load(ckpt_path)
+# model = GNM_VAE().to(device)
+# ckpt_path = './logs/gnm_vae_1e-6/gnm_vae_1e-6_2024_01_23_14_25_57/15.pth'
+# checkpoint = torch.load(ckpt_path)
 
 try:
     model.load_state_dict(checkpoint['model'].module.state_dict())
@@ -73,8 +72,8 @@ except:
     model.load_state_dict(checkpoint['model'].state_dict())
 
 # goal_path = './mid_color/670.jpg'
-goal_path = '/home/zishuo/anomaly_violate3/forwardtempblock/mid_color/234.jpg'
-for start_id in range(170, 270, 1):
+goal_path = '/home/zishuo/anomaly_violate3/forwardtempblock/mid_color/230.jpg'
+for start_id in range(220, 225, 1):
     model.eval()
     with torch.no_grad():
         obs = torch.cat([load_obs(start_id + i) for i in range(6)])
@@ -88,10 +87,10 @@ for start_id in range(170, 270, 1):
         except:
             dist, action, mu, logvar = model(obs, goal)
             kl = torch.mean(-0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1), dim=0)
-            print(kl)
-            print(start_id)
-        print(dist)
-        # print(action)
+            # print(kl)
+            # print(start_id)
+        # print(dist)
+        print(action * 20)
 
 
 

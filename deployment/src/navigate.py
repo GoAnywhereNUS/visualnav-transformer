@@ -243,6 +243,7 @@ def main(args: argparse.Namespace):
                     import sys
                     sys.exit(0)
 
+        chosen_waypoint[:2] *= 20
         # RECOVERY MODE
         if model_params["normalize"]:
             chosen_waypoint[:2] *= (MAX_V / RATE)  

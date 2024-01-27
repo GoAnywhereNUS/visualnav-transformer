@@ -51,7 +51,7 @@ def pd_controller(waypoint: np.ndarray) -> Tuple[float]:
 		v = 0
 		w = clip_angle(np.arctan2(hy, hx))/DT		
 	elif np.abs(dx) < EPS:
-		v =  0
+		v = 0
 		w = np.sign(dy) * np.pi/(2*DT)
 	else:
 		v = dx / DT
