@@ -10,6 +10,10 @@ gnm:
   config_path: "../../train/config/gnm.yaml"
   ckpt_path: "../model_weights/gnm_large.pth"
 
+gnm_vae:
+  config_path: "../../train/config/gnm_vae.yaml"
+  ckpt_path: "../model_weights/latest_vae.pth"
+
 nomad: 
   config_path: "../../train/config/nomad.yaml"
   ckpt_path: "../model_weights/nomad.pth"

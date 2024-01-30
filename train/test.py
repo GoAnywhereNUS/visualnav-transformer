@@ -89,7 +89,7 @@ for start_id in range(220, 225, 1):
             kl = torch.mean(-0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1), dim=0)
             # print(kl)
             # print(start_id)
-        # print(dist)
+        print(dist)
         print(action * 20)
 
 

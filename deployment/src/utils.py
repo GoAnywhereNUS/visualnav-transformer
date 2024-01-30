@@ -18,6 +18,7 @@ from typing import List, Tuple, Dict, Optional
 
 # models
 from vint_train.models.gnm.gnm import GNM
+from vint_train.models.gnm.gnm_vae import GNM_VAE
 from vint_train.models.vint.vint import ViNT
 
 from vint_train.models.vint.vit import ViT
@@ -37,6 +38,14 @@ def load_model(
     
     if model_type == "gnm":
         model = GNM(
+            config["context_size"],
+            config["len_traj_pred"],
+            config["learn_angle"],
+            config["obs_encoding_size"],
+            config["goal_encoding_size"],
+        )
+    elif model_type == "gnm_vae":
+        model = GNM_VAE(
             config["context_size"],
             config["len_traj_pred"],
             config["learn_angle"],

@@ -78,6 +78,7 @@ def main(args: argparse.Namespace):
         model_params = yaml.safe_load(f)
 
     context_size = model_params["context_size"]
+    model_type = model_params["model_type"]
 
     # load model weights
     ckpth_path = model_paths[args.model]["ckpt_path"]
@@ -93,7 +94,6 @@ def main(args: argparse.Namespace):
     model = model.to(device)
     model.eval()
 
-    
      # load topomap
     topomap_filenames = sorted(os.listdir(os.path.join(
         TOPOMAP_IMAGES_DIR, args.dir)), key=lambda x: int(x.split(".")[0]))
@@ -215,8 +215,12 @@ def main(args: argparse.Namespace):
                 # predict distances and waypoints
                 batch_obs_imgs = torch.cat(batch_obs_imgs, dim=0).to(device)
                 batch_goal_data = torch.cat(batch_goal_data, dim=0).to(device)
+                if model_type == 'gnm_vae':
+                    distances, waypoints, mu, logvar = model(batch_obs_imgs, batch_goal_data)
+                    kl = torch.mean(-0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1), dim=0)
+                else:
+                    distances, waypoints = model(batch_obs_imgs, batch_goal_data)
 
-                distances, waypoints = model(batch_obs_imgs, batch_goal_data)
                 distances = to_numpy(distances)
                 waypoints = to_numpy(waypoints)
 
