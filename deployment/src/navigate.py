@@ -8,6 +8,7 @@ from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 
 import matplotlib.pyplot as plt
 import yaml
+from cam_utils import *
 
 # ROS
 import rospy
@@ -93,6 +94,12 @@ def main(args: argparse.Namespace):
     )
     model = model.to(device)
     model.eval()
+
+    if model_type == 'gnm_vae':
+        target_layers = [model.obs_mobilenet[-1], model.obs_mobilenet[-2], model.obs_mobilenet[-3], ]
+        activations_and_grads = ActivationsAndGradients(model, target_layers, None)
+        cam = GradCAM(None, target_size=(85, 64))
+
 
      # load topomap
     topomap_filenames = sorted(os.listdir(os.path.join(
@@ -216,8 +223,23 @@ def main(args: argparse.Namespace):
                 batch_obs_imgs = torch.cat(batch_obs_imgs, dim=0).to(device)
                 batch_goal_data = torch.cat(batch_goal_data, dim=0).to(device)
                 if model_type == 'gnm_vae':
-                    distances, waypoints, mu, logvar = model(batch_obs_imgs, batch_goal_data)
+                    distances, waypoints, mu, logvar = activations_and_grads(batch_obs_imgs, batch_goal_data)
+                    model.zero_grad()
                     kl = torch.mean(-0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1), dim=0)
+                    # gradcam_loss = torch.mean(mu)
+                    gradcam_loss = kl
+                    gradcam_loss.backward(retain_graph=True)
+                    grayscale_cam = cam(activations_and_grads)
+                    grayscale_cam = grayscale_cam[0, :]
+
+                    raw_img = context_queue[-1]
+                    raw_img = raw_img.resize((85, 64))
+                    vis, count_left, count_mid, count_right = show_cam_on_image(np.asarray(raw_img) / 255, grayscale_cam,
+                                                                                use_rgb=True)
+                    cv2.putText(vis, str(count_left) + "   " + str(count_mid) + "    " + str(count_right), (5, 5),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255))
+                    cv2.imshow('localisation', vis)
+
                 else:
                     distances, waypoints = model(batch_obs_imgs, batch_goal_data)
 
