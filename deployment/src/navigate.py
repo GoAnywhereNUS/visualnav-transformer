@@ -223,6 +223,13 @@ def main(args: argparse.Namespace):
                 batch_obs_imgs = torch.cat(batch_obs_imgs, dim=0).to(device)
                 batch_goal_data = torch.cat(batch_goal_data, dim=0).to(device)
                 if model_type == 'gnm_vae':
+
+
+
+
+
+
+
                     distances, waypoints, mu, logvar = activations_and_grads(batch_obs_imgs, batch_goal_data)
                     model.zero_grad()
                     kl = torch.mean(-0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1), dim=0)
@@ -239,6 +246,13 @@ def main(args: argparse.Namespace):
                     cv2.putText(vis, str(count_left) + "   " + str(count_mid) + "    " + str(count_right), (5, 5),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255))
                     cv2.imshow('localisation', vis)
+
+
+
+
+
+
+
 
                 else:
                     distances, waypoints = model(batch_obs_imgs, batch_goal_data)
