@@ -86,8 +86,8 @@ def main():
 		vel_msg = Twist()
 		if reached_goal:
 			vel_out.publish(vel_msg)
-			print("Reached goal! Stopping...")
-			return
+			# print("Reached goal! Stopping...")
+			print("Pausing...")
 		elif waypoint.is_valid(verbose=True):
 			v, w = pd_controller(waypoint.get())
 			if reverse_mode:

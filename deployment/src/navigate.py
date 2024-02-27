@@ -14,6 +14,7 @@ from cam_utils import *
 import rospy
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool, Float32MultiArray
+from geometry_msgs.msg import Twist
 from utils import msg_to_pil, to_numpy, transform_images, load_model
 
 from vint_train.training.train_utils import get_action
@@ -46,6 +47,7 @@ MAX_W = robot_config["max_w"]
 RATE = robot_config["frame_rate"] 
 IMAGE_TOPIC = "/rs_mid/color/image_raw"
 WAYPOINT_TOPIC = "/gnm/waypoint"
+VEL_TOPIC = robot_config["vel_navi_topic"]
 
 print("Publishing to:", IMAGE_TOPIC, WAYPOINT_TOPIC, SAMPLED_ACTIONS_TOPIC)
 
@@ -97,11 +99,7 @@ def main(args: argparse.Namespace):
     model = model.to(device)
     model.eval()
 
-    if model_type == 'gnm_vae':
-        inference = GNM_VAE(model=model)
-
-
-     # load topomap
+    # load topomap
     topomap_filenames = sorted(os.listdir(os.path.join(
         TOPOMAP_IMAGES_DIR, args.dir)), key=lambda x: int(x.split(".")[0]))
     topomap_dir = f"{TOPOMAP_IMAGES_DIR}/{args.dir}"
@@ -128,7 +126,15 @@ def main(args: argparse.Namespace):
     waypoint_pub = rospy.Publisher(
         WAYPOINT_TOPIC, Float32MultiArray, queue_size=1)  
     sampled_actions_pub = rospy.Publisher(SAMPLED_ACTIONS_TOPIC, Float32MultiArray, queue_size=1)
-    goal_pub = rospy.Publisher("/topoplan/reached_goal", Bool, queue_size=1)
+    goal_pub = rospy.Publisher("/gnm/reached_goal", Bool, queue_size=1)
+    vel_pub = rospy.Publisher(VEL_TOPIC, Twist, queue_size=1)
+    if model_params["model_type"] == "gnm_vae":
+        vel_sub = rospy.Subscriber(
+            VEL_TOPIC, 
+            Twist, 
+            lambda msg: model.action_cache.append((msg.linear.x, msg.angular.z)),
+            queue_size=1
+        )
 
     vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
 
@@ -142,6 +148,9 @@ def main(args: argparse.Namespace):
             clip_sample=True,
             prediction_type='epsilon'
         )
+
+    recovery_mode = False
+
     # navigation loop
     while not rospy.is_shutdown():
         # EXPLORATION MODE
@@ -224,24 +233,54 @@ def main(args: argparse.Namespace):
                 # predict distances and waypoints
                 batch_obs_imgs = torch.cat(batch_obs_imgs, dim=0).to(device)
                 batch_goal_data = torch.cat(batch_goal_data, dim=0).to(device)
+                yaw = 0.0
                 if model_type == 'gnm_vae':
+                    
+                    output = model(batch_obs_imgs, batch_goal_data, yaw)
+                    if len(output) == 5:
+                        # Output from recovery strategy
+                        (v, w), _, _, visualisation, help = output
+                        distances, waypoints = None, None
+                        if help:
+                            print("Need human intervention. STOPPING!")
+                            goal_pub.publish(True)
+                            sys.exit(0)
 
-                    try:
-                        distances, waypoints, kl, filtered_kl = inference(batch_obs_imgs, batch_goal_data, yaw=0, context_queue[-1])
-                        RECOVERY_MODE = False
-                    except:
-                        RECOVERY_MODE = True
-                        vel_msg = Twist()
-                        (v, w), kl, filtered_kl, visualization, ask_for_help = inference(batch_obs_imgs, batch_goal_data, yaw=0, context_queue[-1])
-                        vel_msg.linear.x = v
-                        vel_msg.angular.z = w
+                    elif len(output) == 6:
+                        # Output from learned policy
+                        distances, waypoints, _, _, visualisation, _ = output
+                        v, w = None, None
+                    else:
+                        raise Exception("Invalid output from GNM VAE model")
 
+                    if visualisation is not None:
+                        # TODO
+                        pass
                 else:
                     distances, waypoints = model(batch_obs_imgs, batch_goal_data)
 
-                if not RECOVERY_MODE:
-                    distances = to_numpy(distances)
-                    waypoints = to_numpy(waypoints)
+                # If actions issued are for recovery, we pause the PD controller and
+                # directly send actions to /cmd_vel
+                if distances is None and waypoints is None:
+                    recovery_mode = True
+                    goal_pub.publish(True) # Pauses the PD controller so that we can take over
+
+                    assert v is not None and w is not None
+                    vel_msg = Twist()
+                    vel_msg.linear.x = v
+                    vel_msg.angular.z = w                    
+                    vel_pub.publish(vel_msg)
+                    rate.sleep()
+                    continue
+
+                else:
+                    if recovery_mode:
+                        # First step taken in normal mode after exiting recovery
+                        recovery_mode = False
+                        goal_pub.publish(False) # Unpause the PD controller and relinquish control of cmd_vel
+
+                distances = to_numpy(distances)
+                waypoints = to_numpy(waypoints)
 
                     # look for closest node
                     closest_node_in_radius = np.argmin(distances)
