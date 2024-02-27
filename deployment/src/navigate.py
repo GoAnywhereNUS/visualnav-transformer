@@ -25,11 +25,13 @@ import yaml
 import time
 import cv2
 
+from GNM_VAE import GNM_VAE
+
 # UTILS
 from topic_names import (IMAGE_TOPIC,
                         WAYPOINT_TOPIC,
                         SAMPLED_ACTIONS_TOPIC)
-
+from geometry_msgs.msg import Twist
 
 # CONSTANTS
 TOPOMAP_IMAGES_DIR = "../topomaps/images"
@@ -55,7 +57,7 @@ subgoal = []
 # Load the model 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
-
+RECOVERY_MODE = False
 
 def callback_obs(msg):
     obs_img = msg_to_pil(msg)
@@ -96,9 +98,7 @@ def main(args: argparse.Namespace):
     model.eval()
 
     if model_type == 'gnm_vae':
-        target_layers = [model.obs_mobilenet[-1], model.obs_mobilenet[-2], model.obs_mobilenet[-3], ]
-        activations_and_grads = ActivationsAndGradients(model, target_layers, None)
-        cam = GradCAM(None, target_size=(85, 64))
+        inference = GNM_VAE(model=model)
 
 
      # load topomap
@@ -129,6 +129,8 @@ def main(args: argparse.Namespace):
         WAYPOINT_TOPIC, Float32MultiArray, queue_size=1)  
     sampled_actions_pub = rospy.Publisher(SAMPLED_ACTIONS_TOPIC, Float32MultiArray, queue_size=1)
     goal_pub = rospy.Publisher("/topoplan/reached_goal", Bool, queue_size=1)
+
+    vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
 
     print("Registered with master node. Waiting for image observations...")
 
@@ -224,74 +226,57 @@ def main(args: argparse.Namespace):
                 batch_goal_data = torch.cat(batch_goal_data, dim=0).to(device)
                 if model_type == 'gnm_vae':
 
-
-
-
-
-
-
-                    distances, waypoints, mu, logvar = activations_and_grads(batch_obs_imgs, batch_goal_data)
-                    model.zero_grad()
-                    kl = torch.mean(-0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1), dim=0)
-                    # gradcam_loss = torch.mean(mu)
-                    gradcam_loss = kl
-                    gradcam_loss.backward(retain_graph=True)
-                    grayscale_cam = cam(activations_and_grads)
-                    grayscale_cam = grayscale_cam[0, :]
-
-                    raw_img = context_queue[-1]
-                    raw_img = raw_img.resize((85, 64))
-                    vis, count_left, count_mid, count_right = show_cam_on_image(np.asarray(raw_img) / 255, grayscale_cam,
-                                                                                use_rgb=True)
-                    cv2.putText(vis, str(count_left) + "   " + str(count_mid) + "    " + str(count_right), (5, 5),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255))
-                    cv2.imshow('localisation', vis)
-
-
-
-
-
-
-
+                    try:
+                        distances, waypoints, kl, filtered_kl = inference(batch_obs_imgs, batch_goal_data, yaw=0, context_queue[-1])
+                        RECOVERY_MODE = False
+                    except:
+                        RECOVERY_MODE = True
+                        vel_msg = Twist()
+                        (v, w), kl, filtered_kl, visualization, ask_for_help = inference(batch_obs_imgs, batch_goal_data, yaw=0, context_queue[-1])
+                        vel_msg.linear.x = v
+                        vel_msg.angular.z = w
 
                 else:
                     distances, waypoints = model(batch_obs_imgs, batch_goal_data)
 
-                distances = to_numpy(distances)
-                waypoints = to_numpy(waypoints)
+                if not RECOVERY_MODE:
+                    distances = to_numpy(distances)
+                    waypoints = to_numpy(waypoints)
 
-                # look for closest node
-                closest_node_in_radius = np.argmin(distances)
+                    # look for closest node
+                    closest_node_in_radius = np.argmin(distances)
 
-                # chose subgoal and output waypoints
-                if distances[closest_node_in_radius] > args.close_threshold:
-                    chosen_waypoint = waypoints[closest_node_in_radius][args.waypoint]
-                    sg_img = topomap[start + closest_node_in_radius]
-                else:
-                    chosen_waypoint = waypoints[min(
-                        closest_node_in_radius + 1, len(waypoints) - 1)][args.waypoint]
-                    sg_img = topomap[start + min(closest_node_in_radius + 1, len(waypoints) - 1)]
+                    # chose subgoal and output waypoints
+                    if distances[closest_node_in_radius] > args.close_threshold:
+                        chosen_waypoint = waypoints[closest_node_in_radius][args.waypoint]
+                        sg_img = topomap[start + closest_node_in_radius]
+                    else:
+                        chosen_waypoint = waypoints[min(
+                            closest_node_in_radius + 1, len(waypoints) - 1)][args.waypoint]
+                        sg_img = topomap[start + min(closest_node_in_radius + 1, len(waypoints) - 1)]
 
-                closest_node = start + closest_node_in_radius
-                closest_node_image = np.array(topomap[closest_node].resize((320, 240)))
-                live_image = context_queue[-1].resize((320, 240)) 
-                combined_image = np.concatenate((np.array(live_image), closest_node_image), axis=1)
-                cv2.putText(combined_image, str(closest_node) + "/" + str(len(topomap)-1), (340,20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0))
-                cv2.imshow('Live/Subgoal', combined_image)
-                if cv2.waitKey(10) == ord('q'):
-                    print("Shutting down...")
-                    import sys
-                    sys.exit(0)
-
-        chosen_waypoint[:2] *= 20
-        # RECOVERY MODE
-        if model_params["normalize"]:
-            chosen_waypoint[:2] *= (MAX_V / RATE)  
-        waypoint_msg = Float32MultiArray()
-        waypoint_msg.data = chosen_waypoint
-        waypoint_pub.publish(waypoint_msg)
-        reached_goal = closest_node == goal_node
-        goal_pub.publish(reached_goal)
+                    closest_node = start + closest_node_in_radius
+                    closest_node_image = np.array(topomap[closest_node].resize((320, 240)))
+                    live_image = context_queue[-1].resize((320, 240))
+                    combined_image = np.concatenate((np.array(live_image), closest_node_image), axis=1)
+                    cv2.putText(combined_image, str(closest_node) + "/" + str(len(topomap)-1), (340,20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0))
+                    cv2.imshow('Live/Subgoal', combined_image)
+                    if cv2.waitKey(10) == ord('q'):
+                        print("Shutting down...")
+                        import sys
+                        sys.exit(0)
+        if not RECOVERY_MODE:
+            chosen_waypoint[:2] *= 20
+            # RECOVERY MODE
+            if model_params["normalize"]:
+                chosen_waypoint[:2] *= (MAX_V / RATE)
+            waypoint_msg = Float32MultiArray()
+            waypoint_msg.data = chosen_waypoint
+            waypoint_pub.publish(waypoint_msg)
+            reached_goal = closest_node == goal_node
+            goal_pub.publish(reached_goal)
+        else:
+            vel_pub.publish(vel_msg)
         if reached_goal:
             print("Reached goal! Stopping...")
         rate.sleep()
