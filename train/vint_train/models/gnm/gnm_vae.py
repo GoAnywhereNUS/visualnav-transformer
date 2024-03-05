@@ -18,6 +18,7 @@ from torchvision.transforms import Compose, Normalize, ToTensor, ToPILImage, Res
 from typing import List, Dict, Optional, Tuple
 from vint_train.models.gnm.modified_mobilenetv2 import MobileNetEncoder
 from vint_train.models.base_model import BaseModel
+import cv2
 
 
 class GNM_VAE(BaseModel):
@@ -145,24 +146,17 @@ class PD_controller:
         return output
     
 
-class GNM_VAE_Inference(GNM_VAE):
+class GNM_VAE_Inference(object):
     def __init__(
         self,
-        context_size: int = 5,
-        len_traj_pred: Optional[int] = 5,
-        learn_angle: Optional[bool] = True,
-        obs_encoding_size: Optional[int] = 1024,
-        goal_encoding_size: Optional[int] = 1024,
+        model
     ) -> None:
         
         super().__init__(
-            context_size, 
-            len_traj_pred, 
-            learn_angle, 
-            obs_encoding_size, 
-            goal_encoding_size
+            model
         )
 
+        self.model = model
         #######################################################################################
         ####### Initialise FaRe anomaly detector and localiser, and recovery strategies #######
         #######################################################################################
@@ -202,21 +196,10 @@ class GNM_VAE_Inference(GNM_VAE):
         self.recovery_step = -1
         self.yaw_base = 0
 
-        self.target_layers_left = [self.model.view_models[0].conv_layers[2],
-                          #self.model.view_models[0].conv_layers[1],
-                          #self.model.view_models[0].conv_layers[0],
-                        ]
-        self.target_layers_mid = [self.model.view_models[1].conv_layers[2],
-                          #self.model.view_models[1].conv_layers[1],
-                          #self.model.view_models[1].conv_layers[0],
-                        ]
-        self.target_layers_right = [self.model.view_models[2].conv_layers[2],
-                          #self.model.view_models[2].conv_layers[1],
-                          #self.model.view_models[2].conv_layers[0],
-                        ]
-        self.activations_and_grads = ActivationsAndGradients(self.model, self.target_layers_left, self.target_layers_mid, self.target_layers_right, None)
+        self.target_layers = [self.model.obs_mobilenet[-1][0]]
+        self.activations_and_grads = ActivationsAndGradients(self.model, self.target_layers, None)
         self.cam = GradCAM(None, target_size=(112, 112))
-        self.left_raw, self.mid_raw, self.right_raw = 0, 0, 0
+        # self.left_raw, self.mid_raw, self.right_raw = 0, 0, 0
         self.resize_raw = Compose([ToPILImage(), Resize((85, 64))])
         
         self.recovery_action = self.DEFAULT_OUTPUT
@@ -226,11 +209,10 @@ class GNM_VAE_Inference(GNM_VAE):
         self.first_pd = True
         self.ask_for_help = False
 
-    def forward(
-        self, obs_img: torch.tensor, goal_img: torch.tensor, yaw: float
+    def __call__(
+        self, obs_img: torch.tensor, goal_img: torch.tensor, yaw: float, image_vis
     ):
-        # TODO: Check if this should be done here?
-        self.gap_count += 1
+        # self.gap_count += 1
 
         key = self._getKey()
         if key == ' ':
@@ -244,47 +226,47 @@ class GNM_VAE_Inference(GNM_VAE):
                 d_ = itertools.islice(self.kl_cache, 0, 10)
                 self.kl_base = sum(d_) / 10
                 self.yaw_base = yaw
-            left, mid, right = self._split_image(obs_img)
-            self.left_raw, self.mid_raw, self.right_raw = self.resize_raw(left), self.resize_raw(mid), self.resize_raw(right)
-            (v, w), kl, filtered_kl, visualization, ask_for_help = self._recovery_policy(left, mid, right, yaw)
-            return (v, w), kl, filtered_kl, visualization, ask_for_help
+            # left, mid, right = self._split_image(obs_img)
+            # self.left_raw, self.mid_raw, self.right_raw = self.resize_raw(left), self.resize_raw(mid), self.resize_raw(right)
+            (v, w), kl, filtered_kl, visualisation, ask_for_help = self._recovery_policy(obs_img, goal_img, yaw, image_vis)
+            return (v, w), kl, filtered_kl, visualisation, ask_for_help
         
         # normal mode
         # inference
         with torch.no_grad():
-            dist_pred, action_pred, mu, logvar = super().forward(obs_img, goal_img)
+            dist_pred, action_pred, mu, logvar = self.model(obs_img, goal_img)
             kl = self.kl_divergence(mu, logvar)
 
         # check gap
-        if self.gap_count % self.interval == 0:
-            self.last_pred = (dist_pred, action_pred)
-            self.last_kl = kl
+        # if self.gap_count % self.interval == 0:
+        #     self.last_pred = (dist_pred, action_pred)
+        #     self.last_kl = kl
 
         filtered_kl = self._filter_kl(kl)
-        return dist_pred, action_pred, self.last_kl.item(), filtered_kl, None, False
+        return dist_pred, action_pred, kl.item(), filtered_kl, None, False
 
     def _split_image(self, obs_img):
         return torch.chunk(obs_img, 3, dim=2)
 
-    def _recovery_policy(self, left, mid, right, yaw):
+    def _recovery_policy(self, obs, goal, yaw, image_vis):
         print("Anomaly Detected!")
         print("Base value" + str(self.kl_base))
-        self._init_states()
-        left, mid, right = left.unsqueeze(1).cuda(), mid.unsqueeze(1).cuda(), right.unsqueeze(1).cuda()
-
-        out, mu, logvar = self.activations_and_grads(left, mid, right) # TODO: Check if this is the correct way to call
+        distances, waypoints, mu, logvar = self.activations_and_grads(obs, goal)
         self.model.zero_grad()
         kl = self.kl_divergence(mu, logvar)
-        gradcam_loss = torch.mean(mu)
-        #gradcam_loss = kl
+        # gradcam_loss = torch.mean(mu)
+        gradcam_loss = kl
         gradcam_loss.backward(retain_graph=True)
-        grayscale_cam_left, grayscale_cam_mid, grayscale_cam_right = self.cam(self.activations_and_grads)
-        grayscale_cam_left, grayscale_cam_mid, grayscale_cam_right = grayscale_cam_left[0, :], grayscale_cam_mid[0, :], grayscale_cam_right[0, :]
+        grayscale_cam = self.cam(self.activations_and_grads)
+        grayscale_cam = grayscale_cam[0, :]
 
-        vis_left, count_left = show_cam_on_image(np.asarray(self.left_raw) / 255, grayscale_cam_left, use_rgb=True)
-        vis_mid, count_mid = show_cam_on_image(np.asarray(self.mid_raw) / 255, grayscale_cam_mid, use_rgb=True)
-        vis_right, count_right = show_cam_on_image(np.asarray(self.right_raw) / 255, grayscale_cam_right, use_rgb=True)
-        visualization = np.concatenate([vis_left, vis_mid, vis_right], axis=1)
+        raw_img = image_vis
+        raw_img = raw_img.resize((85, 64))
+        visualisation, count_left, count_mid, count_right = show_cam_on_image(np.asarray(raw_img) / 255, grayscale_cam,
+                                                                    use_rgb=True)
+        cv2.putText(visualisation, str(count_left) + "   " + str(count_mid) + "    " + str(count_right), (5, 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255))
+        cv2.imshow('localisation', visualisation)
 
         if count_left > self.switch_threshold and count_mid > self.switch_threshold and count_right > self.switch_threshold:
             action_mode = 'backtrack'
@@ -398,7 +380,7 @@ class GNM_VAE_Inference(GNM_VAE):
             self.recovery_action = (0, 0)
             self.ask_for_help = True
 
-        return self.recovery_action, kl, 0, visualization, self.ask_for_help
+        return self.recovery_action, kl, 0, visualisation, self.ask_for_help
             
     def _init_detection(self):
         self.ask_for_help = False
@@ -450,9 +432,7 @@ class GNM_VAE_Inference(GNM_VAE):
         accum_gradient = 0
         if not self.detect_flag:
             if len(self.filtered_kl_cache) == self.window_length:
-                for i in range(self.window_length-1):
-                    gradient = self.filtered_kl_cache[-1-i] - self.filtered_kl_cache[-1-i-1]
-                    accum_gradient += gradient
+                accum_gradient = self.filtered_kl_cache[-1] - self.filtered_kl_cache[0]
             if accum_gradient > self.threshold:
                 #if self.last_intent == 0:
                 self.detect_flag = True
