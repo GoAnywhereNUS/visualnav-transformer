@@ -152,9 +152,7 @@ class GNM_VAE_Inference(object):
         model
     ) -> None:
         
-        super().__init__(
-            model
-        )
+        super().__init__()
 
         self.model = model
         #######################################################################################
@@ -198,7 +196,7 @@ class GNM_VAE_Inference(object):
 
         self.target_layers = [self.model.obs_mobilenet[-1][0]]
         self.activations_and_grads = ActivationsAndGradients(self.model, self.target_layers, None)
-        self.cam = GradCAM(None, target_size=(112, 112))
+        self.cam = GradCAM(None, target_size=(85, 64))
         # self.left_raw, self.mid_raw, self.right_raw = 0, 0, 0
         self.resize_raw = Compose([ToPILImage(), Resize((85, 64))])
         
@@ -228,6 +226,8 @@ class GNM_VAE_Inference(object):
                 self.yaw_base = yaw
             # left, mid, right = self._split_image(obs_img)
             # self.left_raw, self.mid_raw, self.right_raw = self.resize_raw(left), self.resize_raw(mid), self.resize_raw(right)
+            obs_img = obs_img[-1].unsqueeze(0)
+            goal_img = goal_img[-1].unsqueeze(0)
             (v, w), kl, filtered_kl, visualisation, ask_for_help = self._recovery_policy(obs_img, goal_img, yaw, image_vis)
             return (v, w), kl, filtered_kl, visualisation, ask_for_help
         
@@ -241,8 +241,9 @@ class GNM_VAE_Inference(object):
         # if self.gap_count % self.interval == 0:
         #     self.last_pred = (dist_pred, action_pred)
         #     self.last_kl = kl
-
+        kl = kl[-1]
         filtered_kl = self._filter_kl(kl)
+        print(kl.item(), filtered_kl)
         return dist_pred, action_pred, kl.item(), filtered_kl, None, False
 
     def _split_image(self, obs_img):
@@ -254,6 +255,7 @@ class GNM_VAE_Inference(object):
         distances, waypoints, mu, logvar = self.activations_and_grads(obs, goal)
         self.model.zero_grad()
         kl = self.kl_divergence(mu, logvar)
+        print(kl.item())
         # gradcam_loss = torch.mean(mu)
         gradcam_loss = kl
         gradcam_loss.backward(retain_graph=True)
@@ -267,7 +269,7 @@ class GNM_VAE_Inference(object):
         cv2.putText(visualisation, str(count_left) + "   " + str(count_mid) + "    " + str(count_right), (5, 5),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255))
         cv2.imshow('localisation', visualisation)
-
+        
         if count_left > self.switch_threshold and count_mid > self.switch_threshold and count_right > self.switch_threshold:
             action_mode = 'backtrack'
             self.rotate = False

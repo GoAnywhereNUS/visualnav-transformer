@@ -1,3 +1,4 @@
+from utils import clip_angle
 import numpy as np
 import yaml
 from typing import Tuple
@@ -7,7 +8,6 @@ import rospy
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32MultiArray, Bool
 from ros_data import ROSData
-from utils import clip_angle
 
 # CONSTS
 WAYPOINT_TOPIC = "/gnm/waypoint"

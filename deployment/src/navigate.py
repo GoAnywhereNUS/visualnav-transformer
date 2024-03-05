@@ -32,6 +32,7 @@ from topic_names import (IMAGE_TOPIC,
                         SAMPLED_ACTIONS_TOPIC)
 from geometry_msgs.msg import Twist
 from vint_train.models.gnm.gnm_vae import GNM_VAE_Inference
+import sys
 
 # CONSTANTS
 TOPOMAP_IMAGES_DIR = "../topomaps/images"
@@ -97,6 +98,8 @@ def main(args: argparse.Namespace):
     model = model.to(device)
     model.eval()
 
+    inference = GNM_VAE_Inference(model)
+
     # load topomap
     topomap_filenames = sorted(os.listdir(os.path.join(
         TOPOMAP_IMAGES_DIR, args.dir)), key=lambda x: int(x.split(".")[0]))
@@ -130,7 +133,7 @@ def main(args: argparse.Namespace):
         vel_sub = rospy.Subscriber(
             VEL_TOPIC, 
             Twist, 
-            lambda msg: model.action_cache.append((msg.linear.x, msg.angular.z)),
+            lambda msg: inference.action_cache.append((msg.linear.x, msg.angular.z)),
             queue_size=1
         )
 
@@ -148,9 +151,7 @@ def main(args: argparse.Namespace):
         )
 
     recovery_mode = False
-
-    inference = GNM_VAE_Inference(model)
-
+    
     # navigation loop
     while not rospy.is_shutdown():
         # EXPLORATION MODE
@@ -301,7 +302,6 @@ def main(args: argparse.Namespace):
                 cv2.imshow('Live/Subgoal', combined_image)
                 if cv2.waitKey(10) == ord('q'):
                     print("Shutting down...")
-                    import sys
                     sys.exit(0)
 
         chosen_waypoint[:2] *= 20

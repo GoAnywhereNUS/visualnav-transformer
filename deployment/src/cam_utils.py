@@ -1,7 +1,7 @@
-import cv2 as cv
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+import cv2
 
 def look(src):
     plt.imshow(src)
@@ -136,7 +136,7 @@ class GradCAM:
             img = img - np.min(img)
             img = img / (1e-7 + np.max(img))
             if target_size is not None:
-                img = cv.resize(img, target_size)  # cv2.resize(src, (width, height))
+                img = cv2.resize(img, target_size)  # cv2.resize(src, (width, height))
             result.append(img)
         result = np.float32(result)
         return result
@@ -184,16 +184,16 @@ class GradCAM:
 def show_cam_on_image(img: np.ndarray,
                       mask: np.ndarray,
                       use_rgb: bool = False,
-                      colormap: int = cv.COLORMAP_JET):
+                      colormap: int = cv2.COLORMAP_JET):
     gray = np.uint8(255 * mask)
-    thresh = cv.threshold(gray, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)[1]
+    thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
     # count_anomaly = np.count_nonzero(thresh == 255)
     count_anomaly_left = np.count_nonzero(thresh[:, 0:28] == 255)
     count_anomaly_mid = np.count_nonzero(thresh[:, 28:46] == 255)
     count_anomaly_right = np.count_nonzero(thresh[:, 46:85] == 255)
-    heatmap = cv.applyColorMap(np.uint8(255 * mask), colormap)
+    heatmap = cv2.applyColorMap(np.uint8(255 * mask), colormap)
     if use_rgb:
-        heatmap = cv.cvtColor(heatmap, cv.COLOR_BGR2RGB)
+        heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
     heatmap = np.float32(heatmap) / 255.
     if np.max(img) > 1:
         raise Exception(
@@ -202,9 +202,9 @@ def show_cam_on_image(img: np.ndarray,
     cam = cam / np.max(cam)
     img = np.uint8(255 * cam)
     # draw boundingbox
-    # cnts = cv.findContours(thresh, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    # cnts = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     # cnts = cnts[0] if len(cnts) == 2 else cnts[1]
     # for c in cnts:
-    #     x, y, w, h = cv.boundingRect(c)
-    #     cv.rectangle(img, (x, y), (x + w, y + h), (36, 255, 12), 2)
+    #     x, y, w, h = cv2.boundingRect(c)
+    #     cv2.rectangle(img, (x, y), (x + w, y + h), (36, 255, 12), 2)
     return img, count_anomaly_left, count_anomaly_mid, count_anomaly_right
