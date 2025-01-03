@@ -23,15 +23,20 @@ import numpy as np
 import argparse
 import yaml
 import time
+import cv2
 
 
-# UTILS
-from topic_names import (IMAGE_TOPIC,
-                        WAYPOINT_TOPIC,
-                        SAMPLED_ACTIONS_TOPIC)
+# # UTILS
+# from topic_names import (IMAGE_TOPIC,
+#                         WAYPOINT_TOPIC,
+#                         SAMPLED_ACTIONS_TOPIC)
 
 
 # CONSTANTS
+IMAGE_TOPIC = '/front_img'
+WAYPOINT_TOPIC = '/gnm/waypoint'
+SAMPLED_ACTIONS_TOPIC = '/gnm/samples'
+
 MODEL_WEIGHTS_PATH = "../model_weights"
 ROBOT_CONFIG_PATH ="../config/robot.yaml"
 MODEL_CONFIG_PATH = "../config/models.yaml"
@@ -162,15 +167,16 @@ def main(args: argparse.Namespace):
             sampled_actions_msg.data = np.concatenate((np.array([0]), naction.flatten()))
             sampled_actions_pub.publish(sampled_actions_msg)
 
-            naction = naction[0] # change this based on heuristic
+            # naction = naction[0] # change this based on heuristic
 
-            chosen_waypoint = naction[args.waypoint]
+            # chosen_waypoint = naction[args.waypoint]
 
-            if model_params["normalize"]:
-                chosen_waypoint *= (MAX_V / RATE)
-            waypoint_msg.data = chosen_waypoint
-            waypoint_pub.publish(waypoint_msg)
-            print("Published waypoint")
+            # if model_params["normalize"]:
+            #     chosen_waypoint *= (MAX_V / RATE)
+            # waypoint_msg.data = chosen_waypoint
+            # waypoint_pub.publish(waypoint_msg)
+            # print("Published waypoint")
+
         rate.sleep()
 
 
