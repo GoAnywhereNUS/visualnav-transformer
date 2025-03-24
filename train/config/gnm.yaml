@@ -1,7 +1,7 @@
 # NOTE: this model uses private datasets
 
-project_name: gnm
-run_name: gnm
+project_name: gnm_i4_overfit
+run_name: gnm_i4_overfit
 
 # training setup
 use_wandb: True # set to false if you don't want to log to wandb
@@ -100,14 +100,23 @@ datasets:
   #   end_slack: 0
   #   goals_per_obs: 1
   #   negative_mining: True
-  inet_gnm_data:
-    data_folder: /home/zishuo/inet_gnm_data/
-    train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/inet_gnm_data/train/
-    test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/inet_gnm_data/test/
+
+  # inet_gnm_data:
+  #   data_folder: /home/zishuo/inet_gnm_data/
+  #   train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/inet_gnm_data/train/
+  #   test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/inet_gnm_data/test/
+  #   end_slack: 0
+  #   goals_per_obs: 1
+  #   negative_mining: True
+  
+  i4_overfit_gnm_data:
+    data_folder: /home/zishuo/i4_overfit_gnm_data/
+    train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data/train/
+    test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data/test/
     end_slack: 0
     goals_per_obs: 1
     negative_mining: True
-
+  
 
 
 # logging stuff

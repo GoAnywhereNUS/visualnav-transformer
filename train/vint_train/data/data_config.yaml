@@ -63,3 +63,6 @@ sacson:
 # add your own dataset params here:
 inet_gnm_data:
   metric_waypoint_spacing: 1
+
+i4_overfit_gnm_data:
+  metric_waypoint_spacing: 1
