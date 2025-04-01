@@ -105,12 +105,12 @@ if __name__ == "__main__":
         "-i",
         type=str,
         help="path of the datasets with rosbags",
-        default="/home/zishuo/i4_overfit/",
+        default="/home/zishuo/i4_overfit_2/",
     )
     parser.add_argument(
         "--output-dir",
         "-o",
-        default="/home/zishuo/i4_overfit_gnm_data",
+        default="/home/zishuo/i4_overfit_gnm_data_2",
         type=str,
         help="path for processed dataset (default: ../datasets/tartan_drive/)",
     )

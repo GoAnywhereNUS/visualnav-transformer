@@ -66,3 +66,6 @@ inet_gnm_data:
 
 i4_overfit_gnm_data:
   metric_waypoint_spacing: 1
+
+i4_overfit_gnm_data_2:
+  metric_waypoint_spacing: 1

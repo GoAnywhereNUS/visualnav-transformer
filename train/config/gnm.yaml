@@ -6,12 +6,12 @@ run_name: gnm_i4_overfit
 # training setup
 use_wandb: True # set to false if you don't want to log to wandb
 train: True
-batch_size: 256
-eval_batch_size: 256
-epochs: 200
+batch_size: 16
+eval_batch_size: 16
+epochs: 100
 gpu_ids: [0,1,2,3]
 num_workers: 16
-lr: 7e-4
+lr: 1e-3
 optimizer: adam
 seed: 0
 
@@ -28,7 +28,7 @@ context_type: temporal # [temporal, randomized]
 context_size: 5
 
 # tradeoff between action and distance prediction loss
-alpha: 0.5
+alpha: 0.1
 
 # distance bounds for distance and action and distance predictions 
 distance:
@@ -46,6 +46,8 @@ learn_angle: True
 # dataset specific parameters
 image_size: [85, 64] # width, height
 goal_type: "image"
+
+# load_run: gnm_i4_overfit_2/gnm_i4_overfit_2_2025_03_26_14_56_34
 
 
 datasets:
@@ -116,6 +118,14 @@ datasets:
     end_slack: 0
     goals_per_obs: 1
     negative_mining: True
+
+  # i4_overfit_gnm_data_2:
+  #   data_folder: /home/zishuo/i4_overfit_gnm_data_2/
+  #   train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data_2/train/
+  #   test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data_2/test/
+  #   end_slack: 0
+  #   goals_per_obs: 1
+  #   negative_mining: True
   
 
 
