@@ -6,7 +6,7 @@ import numpy as np
 from copy import deepcopy
 
 MAX_SKIP_FRAMES = 3 # Taken from DECISION train script
-LOGGING_FRAME_RATE = 15.0 # Frequency of logging in hz
+LOGGING_FRAME_RATE = 30.0 # Frequency of logging in hz
 CAMERA_FOLDER = "mid_color"
 
 def main(args: argparse.Namespace):
@@ -62,7 +62,7 @@ def main(args: argparse.Namespace):
 
         pos = np.zeros(3) # x, y, yaw (used for integrating only, discarded later)
         last_frame_id = None
-        logging_frame_dt = 1.0 / LOGGING_FRAME_RATE
+        logging_frame_dt = 1.0 / args.sample_rate
         for frame_i, (frame_id, datum) in enumerate(traj):
             shutil.copy(
                 os.path.join(image_path, f'{frame_id}.jpg'),

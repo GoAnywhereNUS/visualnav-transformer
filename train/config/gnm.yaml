@@ -1,13 +1,13 @@
 # NOTE: this model uses private datasets
 
-project_name: gnm_i4_overfit
-run_name: gnm_i4_overfit
+project_name: gnm
+run_name: gnm
 
 # training setup
 use_wandb: True # set to false if you don't want to log to wandb
 train: True
-batch_size: 16
-eval_batch_size: 16
+batch_size: 256
+eval_batch_size: 256
 epochs: 100
 gpu_ids: [0,1,2,3]
 num_workers: 16
@@ -103,21 +103,21 @@ datasets:
   #   goals_per_obs: 1
   #   negative_mining: True
 
-  # inet_gnm_data:
-  #   data_folder: /home/zishuo/inet_gnm_data/
-  #   train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/inet_gnm_data/train/
-  #   test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/inet_gnm_data/test/
-  #   end_slack: 0
-  #   goals_per_obs: 1
-  #   negative_mining: True
-  
-  i4_overfit_gnm_data:
-    data_folder: /home/zishuo/i4_overfit_gnm_data/
-    train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data/train/
-    test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data/test/
+  inet_gnm_data:
+    data_folder: /home/zishuo/inet_gnm_data/
+    train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/inet_gnm_data/train/
+    test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/inet_gnm_data/test/
     end_slack: 0
     goals_per_obs: 1
     negative_mining: True
+  
+  # i4_overfit_gnm_data:
+  #   data_folder: /home/zishuo/i4_overfit_gnm_data/
+  #   train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data/train/
+  #   test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data/test/
+  #   end_slack: 0
+  #   goals_per_obs: 1
+  #   negative_mining: True
 
   # i4_overfit_gnm_data_2:
   #   data_folder: /home/zishuo/i4_overfit_gnm_data_2/
