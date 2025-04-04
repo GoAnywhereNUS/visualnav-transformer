@@ -111,21 +111,21 @@ datasets:
     goals_per_obs: 1
     negative_mining: True
   
-  # i4_overfit_gnm_data:
-  #   data_folder: /home/zishuo/i4_overfit_gnm_data/
-  #   train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data/train/
-  #   test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data/test/
-  #   end_slack: 0
-  #   goals_per_obs: 1
-  #   negative_mining: True
+  i4_overfit_gnm_data:
+    data_folder: /home/zishuo/i4_overfit_gnm_data/
+    train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data/train/
+    test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data/test/
+    end_slack: 0
+    goals_per_obs: 1
+    negative_mining: True
 
-  # i4_overfit_gnm_data_2:
-  #   data_folder: /home/zishuo/i4_overfit_gnm_data_2/
-  #   train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data_2/train/
-  #   test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data_2/test/
-  #   end_slack: 0
-  #   goals_per_obs: 1
-  #   negative_mining: True
+  i4_overfit_gnm_data_2:
+    data_folder: /home/zishuo/i4_overfit_gnm_data_2/
+    train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data_2/train/
+    test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data_2/test/
+    end_slack: 0
+    goals_per_obs: 1
+    negative_mining: True
   
 
 
