@@ -285,6 +285,8 @@ def main(args: argparse.Namespace):
                 # look for closest node
                 closest_node_in_radius = np.argmin(distances)
 
+                print(distances[closest_node_in_radius])
+
                 # chose subgoal and output waypoints
                 if distances[closest_node_in_radius] > args.close_threshold:
                     chosen_waypoint = waypoints[closest_node_in_radius][args.waypoint]
@@ -304,17 +306,21 @@ def main(args: argparse.Namespace):
                     print("Shutting down...")
                     sys.exit(0)
 
-        chosen_waypoint[:2] *= 20
+        #chosen_waypoint[0] *= 4
+        #chosen_waypoint[1] *= 4
+        print(chosen_waypoint)
         # RECOVERY MODE
         if model_params["normalize"]:
             chosen_waypoint[:2] *= (MAX_V / RATE)
         waypoint_msg = Float32MultiArray()
         waypoint_msg.data = chosen_waypoint
         waypoint_pub.publish(waypoint_msg)
-        reached_goal = closest_node == goal_node
-        goal_pub.publish(reached_goal)
-        if reached_goal:
-            print("Reached goal! Stopping...")
+        
+        # comment to only issue one image goal
+        #reached_goal = closest_node == goal_node
+        #goal_pub.publish(reached_goal)
+        #if reached_goal:
+        #    print("Reached goal! Stopping...")
         rate.sleep()
 
 
@@ -366,7 +372,7 @@ if __name__ == "__main__":
         type=int,
         help="""temporal number of locobal nodes to look at in the topopmap for
         localization (default: 2)""",
-    )
+        )
     parser.add_argument(
         "--num-samples",
         "-n",

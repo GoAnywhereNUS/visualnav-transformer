@@ -216,7 +216,7 @@ class GNM_VAE_Inference(object):
         if key == ' ':
             self._init_detection()
             print("reset detection")
-
+        self.detect_flag = False
         # recovery mode      
         if self.detect_flag:
             self.recovery_step += 1
