@@ -155,6 +155,7 @@ def main(args: argparse.Namespace):
     # navigation loop
     while not rospy.is_shutdown():
         chosen_waypoint = np.zeros(4)
+        chosen_distance = 0
         if len(context_queue) > model_params["context_size"]:
             if model_params["model_type"] == "nomad":
                 obs_images = transform_images(context_queue, model_params["image_size"], center_crop=False)
@@ -305,12 +306,11 @@ def main(args: argparse.Namespace):
                 #     print("Shutting down...")
                 #     sys.exit(0)
 
-
-                if cv2.waitKey(1) & 0xFF == ord('a'):
+                key = cv2.waitKey(10)
+                if key & 0xFF == ord('a'):
                     goal_img_id = max(0, goal_img_id - 1)
-                elif cv2.waitKey(1) & 0xFF == ord('d'):
+                elif key & 0xFF == ord('d'):
                     goal_img_id = min(len(topomap) - 1, goal_img_id + 1)
-                
                 closest_node = goal_img_id
 
                 select_index = args.radius
@@ -326,7 +326,7 @@ def main(args: argparse.Namespace):
                 combined_image = np.concatenate((np.array(live_image), closest_node_image), axis=1)
                 cv2.putText(combined_image, str(goal_img_id) + "/" + str(len(topomap)-1), (340,20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0))
                 cv2.imshow('Live/Subgoal', combined_image)
-                if cv2.waitKey(10) == ord('q'):
+                if key == ord('q'):
                     print("Shutting down...")
                     sys.exit(0)
 
