@@ -151,10 +151,9 @@ def main(args: argparse.Namespace):
         )
 
     recovery_mode = False
-    
+    goal_img_id = 0
     # navigation loop
     while not rospy.is_shutdown():
-        # EXPLORATION MODE
         chosen_waypoint = np.zeros(4)
         if len(context_queue) > model_params["context_size"]:
             if model_params["model_type"] == "nomad":
@@ -282,25 +281,50 @@ def main(args: argparse.Namespace):
                 distances = to_numpy(distances)
                 waypoints = to_numpy(waypoints)
 
-                # look for closest node
-                closest_node_in_radius = np.argmin(distances)
+                # # look for closest node
+                # closest_node_in_radius = np.argmin(distances)
+                # print(distances[closest_node_in_radius])
 
-                print(distances[closest_node_in_radius])
+                # # chose subgoal and output waypoints
+                # if distances[closest_node_in_radius] > args.close_threshold:
+                #     chosen_waypoint = waypoints[closest_node_in_radius][args.waypoint]
+                #     sg_img = topomap[start + closest_node_in_radius]
+                # else:
+                #     chosen_waypoint = waypoints[min(
+                #         closest_node_in_radius + 1, len(waypoints) - 1)][args.waypoint]
+                #     sg_img = topomap[start + min(closest_node_in_radius + 1, len(waypoints) - 1)]
 
-                # chose subgoal and output waypoints
-                if distances[closest_node_in_radius] > args.close_threshold:
-                    chosen_waypoint = waypoints[closest_node_in_radius][args.waypoint]
-                    sg_img = topomap[start + closest_node_in_radius]
-                else:
-                    chosen_waypoint = waypoints[min(
-                        closest_node_in_radius + 1, len(waypoints) - 1)][args.waypoint]
-                    sg_img = topomap[start + min(closest_node_in_radius + 1, len(waypoints) - 1)]
+                # closest_node = start + closest_node_in_radius
+                # closest_node_image = np.array(topomap[closest_node].resize((320, 240)))
 
-                closest_node = start + closest_node_in_radius
-                closest_node_image = np.array(topomap[closest_node].resize((320, 240)))
+                # live_image = context_queue[-1].resize((320, 240))
+                # combined_image = np.concatenate((np.array(live_image), closest_node_image), axis=1)
+                # cv2.putText(combined_image, str(closest_node) + "/" + str(len(topomap)-1), (340,20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0))
+                # cv2.imshow('Live/Subgoal', combined_image)
+                # if cv2.waitKey(10) == ord('q'):
+                #     print("Shutting down...")
+                #     sys.exit(0)
+
+
+                if cv2.waitKey(1) & 0xFF == ord('a'):
+                    goal_img_id = max(0, goal_img_id - 1)
+                elif cv2.waitKey(1) & 0xFF == ord('d'):
+                    goal_img_id = min(len(topomap) - 1, goal_img_id + 1)
+                
+                closest_node = goal_img_id
+
+                select_index = args.radius
+                if goal_img_id - args.radius < 0:
+                    select_index = goal_img_id
+
+                chosen_waypoint = waypoints[select_index][args.waypoint]
+                chosen_distance = distances[select_index]
+                sg_img = topomap[goal_img_id]
+                closest_node_image = np.array(topomap[goal_img_id].resize((320, 240)))
+
                 live_image = context_queue[-1].resize((320, 240))
                 combined_image = np.concatenate((np.array(live_image), closest_node_image), axis=1)
-                cv2.putText(combined_image, str(closest_node) + "/" + str(len(topomap)-1), (340,20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0))
+                cv2.putText(combined_image, str(goal_img_id) + "/" + str(len(topomap)-1), (340,20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0))
                 cv2.imshow('Live/Subgoal', combined_image)
                 if cv2.waitKey(10) == ord('q'):
                     print("Shutting down...")
@@ -308,7 +332,7 @@ def main(args: argparse.Namespace):
 
         #chosen_waypoint[0] *= 4
         #chosen_waypoint[1] *= 4
-        print(chosen_waypoint)
+        print(chosen_waypoint, chosen_distance)
         # RECOVERY MODE
         if model_params["normalize"]:
             chosen_waypoint[:2] *= (MAX_V / RATE)
