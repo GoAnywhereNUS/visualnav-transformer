@@ -6,12 +6,12 @@ run_name: gnm_vae_1e-6
 # training setup
 use_wandb: True # set to false if you don't want to log to wandb
 train: True
-batch_size: 400
-eval_batch_size: 400
+batch_size: 256
+eval_batch_size: 256
 epochs: 30
 gpu_ids: [0,1,2,3]
-num_workers: 4
-lr: 7e-4
+num_workers: 16
+lr: 1e-3
 optimizer: adam
 seed: 0
 
@@ -28,7 +28,7 @@ context_type: temporal # [temporal, randomized]
 context_size: 5
 
 # tradeoff between action and distance prediction loss
-alpha: 0.5
+alpha: 0.1
 
 #tradeoff between task loss and kl divergence
 beta: 0.000001
@@ -103,6 +103,7 @@ datasets:
   #   end_slack: 0
   #   goals_per_obs: 1
   #   negative_mining: True
+  
   inet_gnm_data:
     data_folder: /home/zishuo/inet_gnm_data/
     train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/inet_gnm_data/train/
@@ -110,8 +111,22 @@ datasets:
     end_slack: 0
     goals_per_obs: 1
     negative_mining: True
+  
+  i4_overfit_gnm_data:
+    data_folder: /home/zishuo/i4_overfit_gnm_data/
+    train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data/train/
+    test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data/test/
+    end_slack: 0
+    goals_per_obs: 1
+    negative_mining: True
 
-
+  i4_overfit_gnm_data_2:
+    data_folder: /home/zishuo/i4_overfit_gnm_data_2/
+    train: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data_2/train/
+    test: /home/zishuo/GNM_VAE/train/inet_mid_gnm/i4_overfit_gnm_data_2/test/
+    end_slack: 0
+    goals_per_obs: 1
+    negative_mining: True
 
 # logging stuff
 ## =0 turns off
