@@ -128,7 +128,7 @@ def main(args: argparse.Namespace):
         WAYPOINT_TOPIC, Float32MultiArray, queue_size=1)  
     sampled_actions_pub = rospy.Publisher(SAMPLED_ACTIONS_TOPIC, Float32MultiArray, queue_size=1)
     goal_pub = rospy.Publisher("/gnm/reached_goal", Bool, queue_size=1)
-    vel_pub = rospy.Publisher(VEL_TOPIC, Twist, queue_size=1)
+    # vel_pub = rospy.Publisher(VEL_TOPIC, Twist, queue_size=1)
     if model_params["model_type"] == "gnm_vae":
         vel_sub = rospy.Subscriber(
             VEL_TOPIC, 
@@ -269,7 +269,7 @@ def main(args: argparse.Namespace):
                     vel_msg = Twist()
                     vel_msg.linear.x = v
                     vel_msg.angular.z = w                    
-                    vel_pub.publish(vel_msg)
+                    # vel_pub.publish(vel_msg)
                     rate.sleep()
                     continue
 

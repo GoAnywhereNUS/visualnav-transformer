@@ -194,7 +194,7 @@ class GNM_VAE_Inference(object):
         self.recovery_step = -1
         self.yaw_base = 0
 
-        self.target_layers = [self.model.obs_mobilenet[-1][0]]
+        self.target_layers = [self.model.goal_mobilenet[-1][0]]
         self.activations_and_grads = ActivationsAndGradients(self.model, self.target_layers, None)
         self.cam = GradCAM(None, target_size=(85, 64))
         # self.left_raw, self.mid_raw, self.right_raw = 0, 0, 0
@@ -216,7 +216,7 @@ class GNM_VAE_Inference(object):
         if key == ' ':
             self._init_detection()
             print("reset detection")
-        self.detect_flag = False
+        self.detect_flag = True
         # recovery mode      
         if self.detect_flag:
             self.recovery_step += 1
