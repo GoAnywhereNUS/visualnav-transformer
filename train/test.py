@@ -52,6 +52,7 @@ def setup_seed(seed):
 setup_seed(0)
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+os.makedirs('./gradcam_vis', exist_ok=True)
 
 # model = GNM().to(device)
 # ckpt_path = './logs/gnm/gnm_2024_01_22_01_15_28/9.pth'
@@ -63,11 +64,13 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # checkpoint = torch.load(ckpt_path)
 
 model = GNM_VAE().to(device)
-ckpt_path = './logs/gnm_vae_1e-6/gnm_vae_1e-6_2024_01_26_23_54_10/10.pth'
+ckpt_path = './logs/gnm_vae/gnm_vae_2025_04_18_00_56_03/26.pth'
+# ckpt_path = './logs/gnm_vae_1e-6/gnm_vae_1e-6_2024_01_23_14_25_57/latest.pth'
 checkpoint = torch.load(ckpt_path)
-# print(model.obs_mobilenet)
-target_layers = [model.obs_mobilenet[-1][0]]
-# target_layers = [model.goal_mobilenet[-1], model.goal_mobilenet[-2], model.goal_mobilenet[-3]]
+
+# target_layers = [model.obs_mobilenet[-1][0]]
+target_layers = [model.goal_mobilenet[-1][0]]
+
 activations_and_grads = ActivationsAndGradients(model, target_layers, None)
 cam = GradCAM(None, target_size=(85, 64))
 
@@ -76,11 +79,17 @@ try:
 except:
     model.load_state_dict(checkpoint['model'].state_dict())
 
-goal_path = './mid_color/320.jpg'
-input_path = './mid_color/'
+# input_path = './negative/mid_color/'
+# goal_path = input_path + '90.jpg'
+
 # input_path = '/home/zishuo/anomaly_violate3/leftforwardtempblock/mid_color/'
 # goal_path = input_path + '310.jpg'
-for start_id in range(260, 280, 1):
+
+input_path = '/home/zishuo/inet_gnm_data/t00003/'
+goal_path = input_path + '600.jpg'
+# goal_path = '/home/zishuo/inet_gnm_data/t00002/' + '300.jpg'
+
+for start_id in range(585, 600, 1):
     model.eval()
     # with torch.no_grad():
 
@@ -89,12 +98,21 @@ for start_id in range(260, 280, 1):
     obs = obs.unsqueeze(0)
     goal = goal.unsqueeze(0)
     obs = torch.as_tensor(obs, dtype=torch.float32).to(device)
-
-    # obs = torch.zeros_like(obs)
-
     goal = torch.as_tensor(goal, dtype=torch.float32).to(device)
 
-    # goal = torch.zeros_like(goal)
+    # if start_id > 590:
+    #     img_template = load_obs(0, input_path)
+    #     img_black = torch.zeros_like(img_template)
+    #     obs = torch.cat([load_obs(start_id + i, input_path) for i in range(5)])
+    #     obs = torch.cat([obs, img_black])
+    #     obs = obs.unsqueeze(0)
+    #     obs = torch.as_tensor(obs, dtype=torch.float32).to(device)
+        # obs = torch.zeros_like(obs)
+        # obs[:, :3, :, :] = 0
+    # obs = torch.rand(obs.shape).to(device)
+        # obs[:, :, :, :] = 0
+    
+        # goal = torch.zeros_like(goal)
 
     try:
         dist, action = model(obs, goal)
@@ -123,7 +141,7 @@ for start_id in range(260, 280, 1):
 
         print(kl)
         print(dist)
-        print(action * 20)
+        print(action)
 
 
 

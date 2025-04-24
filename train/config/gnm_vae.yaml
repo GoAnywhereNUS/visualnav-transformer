@@ -1,7 +1,7 @@
 # NOTE: this model uses private datasets
 
-project_name: gnm_vae_1e-6
-run_name: gnm_vae_1e-6
+project_name: gnm_vae
+run_name: gnm_vae
 
 # training setup
 use_wandb: True # set to false if you don't want to log to wandb
@@ -28,7 +28,7 @@ context_type: temporal # [temporal, randomized]
 context_size: 5
 
 # tradeoff between action and distance prediction loss
-alpha: 0.1
+alpha: 0.25
 
 #tradeoff between task loss and kl divergence
 beta: 0.000001
