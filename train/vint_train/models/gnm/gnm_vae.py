@@ -217,7 +217,7 @@ class GNM_VAE_Inference(object):
             self._init_detection()
             print("reset detection")
         
-        self.detect_flag = True
+        #self.detect_flag = True
         # recovery mode      
         if self.detect_flag:
             self.recovery_step += 1
@@ -269,7 +269,7 @@ class GNM_VAE_Inference(object):
                                                                     use_rgb=True)
         cv2.putText(visualisation, str(count_left) + "   " + str(count_mid) + "    " + str(count_right), (5, 5),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255))
-        cv2.imshow('localisation', visualisation)
+        #cv2.imshow('localisation', visualisation)
         
         if count_left > self.switch_threshold and count_mid > self.switch_threshold and count_right > self.switch_threshold:
             action_mode = 'backtrack'

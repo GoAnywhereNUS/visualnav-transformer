@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 
+from cv_bridge import CvBridge
 import matplotlib.pyplot as plt
 import yaml
 from cam_utils import *
@@ -139,6 +140,9 @@ def main(args: argparse.Namespace):
 
     vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
 
+    gradcam_pub = rospy.Publisher("/gradcam", Image, queue_size=5)
+    cv_bridge = CvBridge()
+
     print("Registered with master node. Waiting for image observations...")
 
     if model_params["model_type"] == "nomad":
@@ -244,7 +248,7 @@ def main(args: argparse.Namespace):
                         if help:
                             print("Need human intervention. STOPPING!")
                             goal_pub.publish(True)
-                            sys.exit(0)
+                            #sys.exit(0)
 
                     elif len(output) == 6:
                         # Output from learned policy
@@ -255,7 +259,7 @@ def main(args: argparse.Namespace):
 
                     if visualisation is not None:
                         # TODO
-                        pass
+                        gradcam_pub.publish(cv_bridge.cv2_to_imgmsg(cv2.cvtColor(visualisation, cv2.COLOR_RGB2BGR)))
                 else:
                     distances, waypoints = model(batch_obs_imgs, batch_goal_data)
 
