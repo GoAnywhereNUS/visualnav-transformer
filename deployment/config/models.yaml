@@ -8,11 +8,11 @@ late_fusion:
 
 gnm: 
   config_path: "../../train/config/gnm.yaml"
-  ckpt_path: "../model_weights/gnm/20.pth"
+  ckpt_path: "../model_weights/gnm/latest.pth"
 
 gnm_vae:
   config_path: "../../train/config/gnm_vae.yaml"
-  ckpt_path: "../model_weights/10.pth"
+  ckpt_path: "../model_weights/gnm_vae/0.25.pth"
 
 nomad: 
   config_path: "../../train/config/nomad.yaml"
