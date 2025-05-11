@@ -140,6 +140,7 @@ class GNM:
     def run(self):
         while not rospy.is_shutdown():
             if self.joy_enable:
+                print(self.inference.action_cache)
                 chosen_waypoint = np.zeros(4)
                 chosen_distance = 0
                 if len(self.context_queue) > self.model_params["context_size"]:
@@ -157,6 +158,9 @@ class GNM:
                         
                     # predict distances and waypoints
                     batch_obs_imgs = torch.cat(batch_obs_imgs, dim=0).to(self.device)
+                    ############ simulate sensor failure ########
+                    #batch_obs_imgs = torch.zeros_like(batch_obs_imgs).to(self.device)
+                    #############################################
                     batch_goal_data = torch.cat(batch_goal_data, dim=0).to(self.device)
                     yaw = 0.0
                     if self.model_type == 'gnm_vae':
@@ -164,6 +168,7 @@ class GNM:
                         if len(output) == 5:
                             # Output from recovery strategy
                             (v, w), _, _, visualisation, help = output
+                            print("Recovery action: ", v, w)
                             distances, waypoints = None, None
                             if help:
                                 print("Need human intervention. STOPPING!")
@@ -259,7 +264,7 @@ class GNM:
 
                 #chosen_waypoint[0] *= 4
                 #chosen_waypoint[1] *= 4
-                print(chosen_waypoint, chosen_distance)
+                #print(chosen_waypoint, chosen_distance)
                 # RECOVERY MODE
                 if self.model_params["normalize"]:
                     chosen_waypoint[:2] *= (self.MAX_V / self.RATE)

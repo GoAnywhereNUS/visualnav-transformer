@@ -195,7 +195,7 @@ class GNM_VAE_Inference(object):
         
         self.recovery_action = self.DEFAULT_OUTPUT
         self.backtrack_keep = False
-        self.switch_threshold = 1500
+        self.switch_threshold = 600
         self.max_rotate_step = 40
         self.max_recovery_step = 50
         self.first_pd = True
