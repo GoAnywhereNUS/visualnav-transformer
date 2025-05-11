@@ -185,12 +185,17 @@ def show_cam_on_image(img: np.ndarray,
                       mask: np.ndarray,
                       use_rgb: bool = False,
                       colormap: int = cv.COLORMAP_JET):
+    
     gray = np.uint8(255 * mask)
-    thresh = cv.threshold(gray, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)[1]
-    # count_anomaly = np.count_nonzero(thresh == 255)
-    count_anomaly_left = np.count_nonzero(thresh[:, 0:28] == 255)
-    count_anomaly_mid = np.count_nonzero(thresh[:, 28:46] == 255)
-    count_anomaly_right = np.count_nonzero(thresh[:, 46:85] == 255)
+    # thresh = cv.threshold(gray, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)[1]
+    # count_anomaly_left = np.count_nonzero(thresh[:, 0:28] == 255)
+    # count_anomaly_mid = np.count_nonzero(thresh[:, 28:46] == 255)
+    # count_anomaly_right = np.count_nonzero(thresh[:, 46:85] == 255)
+
+    count_anomaly_left = np.sum(gray[:, 0:28]) / 255
+    count_anomaly_mid = np.sum(gray[:, 28:46]) / 255
+    count_anomaly_right = np.sum(gray[:, 46:85]) / 255
+    
     heatmap = cv.applyColorMap(np.uint8(255 * mask), colormap)
     if use_rgb:
         heatmap = cv.cvtColor(heatmap, cv.COLOR_BGR2RGB)

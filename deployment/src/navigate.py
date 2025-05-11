@@ -26,6 +26,7 @@ import argparse
 import yaml
 import time
 import cv2
+from sensor_msgs.msg import Joy
 
 # UTILS
 from topic_names import (IMAGE_TOPIC,
@@ -56,6 +57,7 @@ print("Publishing to:", IMAGE_TOPIC, WAYPOINT_TOPIC, SAMPLED_ACTIONS_TOPIC)
 context_queue = []
 context_size = None  
 subgoal = []
+joy_enable = False
 
 # Load the model 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -70,6 +72,8 @@ def callback_obs(msg):
             context_queue.pop(0)
             context_queue.append(obs_img)
 
+def callback_joy(joy_msg):
+    joy_enable = (joy_msg.buttons[5] == 1)
 
 def main(args: argparse.Namespace):
     global context_size
@@ -127,9 +131,12 @@ def main(args: argparse.Namespace):
         IMAGE_TOPIC, Image, callback_obs, queue_size=1)
     waypoint_pub = rospy.Publisher(
         WAYPOINT_TOPIC, Float32MultiArray, queue_size=1)  
-    sampled_actions_pub = rospy.Publisher(SAMPLED_ACTIONS_TOPIC, Float32MultiArray, queue_size=1)
     goal_pub = rospy.Publisher("/gnm/reached_goal", Bool, queue_size=1)
+
     # vel_pub = rospy.Publisher(VEL_TOPIC, Twist, queue_size=1)
+    vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
+    gradcam_pub = rospy.Publisher("/gradcam", Image, queue_size=5)
+    cv_bridge = CvBridge()
     if model_params["model_type"] == "gnm_vae":
         vel_sub = rospy.Subscriber(
             VEL_TOPIC, 
@@ -137,92 +144,18 @@ def main(args: argparse.Namespace):
             lambda msg: inference.action_cache.append((msg.linear.x, msg.angular.z)),
             queue_size=1
         )
-
-    vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
-
-    gradcam_pub = rospy.Publisher("/gradcam", Image, queue_size=5)
-    cv_bridge = CvBridge()
+    joy_sub = rospy.Subscriber('/bluetooth_teleop/joy', Joy, callback_joy, queue_size=1)
 
     print("Registered with master node. Waiting for image observations...")
-
-    if model_params["model_type"] == "nomad":
-        num_diffusion_iters = model_params["num_diffusion_iters"]
-        noise_scheduler = DDPMScheduler(
-            num_train_timesteps=model_params["num_diffusion_iters"],
-            beta_schedule='squaredcos_cap_v2',
-            clip_sample=True,
-            prediction_type='epsilon'
-        )
 
     recovery_mode = False
     goal_img_id = 0
     # navigation loop
     while not rospy.is_shutdown():
-        chosen_waypoint = np.zeros(4)
-        chosen_distance = 0
-        if len(context_queue) > model_params["context_size"]:
-            if model_params["model_type"] == "nomad":
-                obs_images = transform_images(context_queue, model_params["image_size"], center_crop=False)
-                obs_images = torch.split(obs_images, 3, dim=1)
-                obs_images = torch.cat(obs_images, dim=1) 
-                obs_images = obs_images.to(device)
-                mask = torch.zeros(1).long().to(device)  
-
-                start = max(closest_node - args.radius, 0)
-                end = min(closest_node + args.radius + 1, goal_node)
-                goal_image = [transform_images(g_img, model_params["image_size"], center_crop=False).to(device) for g_img in topomap[start:end + 1]]
-                goal_image = torch.concat(goal_image, dim=0)
-
-                obsgoal_cond = model('vision_encoder', obs_img=obs_images.repeat(len(goal_image), 1, 1, 1), goal_img=goal_image, input_goal_mask=mask.repeat(len(goal_image)))
-                dists = model("dist_pred_net", obsgoal_cond=obsgoal_cond)
-                dists = to_numpy(dists.flatten())
-                min_idx = np.argmin(dists)
-                closest_node = min_idx + start
-                print("closest node:", closest_node)
-                sg_idx = min(min_idx + int(dists[min_idx] < args.close_threshold), len(obsgoal_cond) - 1)
-                obs_cond = obsgoal_cond[sg_idx].unsqueeze(0)
-
-                # infer action
-                with torch.no_grad():
-                    # encoder vision features
-                    if len(obs_cond.shape) == 2:
-                        obs_cond = obs_cond.repeat(args.num_samples, 1)
-                    else:
-                        obs_cond = obs_cond.repeat(args.num_samples, 1, 1)
-                    
-                    # initialize action from Gaussian noise
-                    noisy_action = torch.randn(
-                        (args.num_samples, model_params["len_traj_pred"], 2), device=device)
-                    naction = noisy_action
-
-                    # init scheduler
-                    noise_scheduler.set_timesteps(num_diffusion_iters)
-
-                    start_time = time.time()
-                    for k in noise_scheduler.timesteps[:]:
-                        # predict noise
-                        noise_pred = model(
-                            'noise_pred_net',
-                            sample=naction,
-                            timestep=k,
-                            global_cond=obs_cond
-                        )
-                        # inverse diffusion step (remove noise)
-                        naction = noise_scheduler.step(
-                            model_output=noise_pred,
-                            timestep=k,
-                            sample=naction
-                        ).prev_sample
-                    print("time elapsed:", time.time() - start_time)
-
-                naction = to_numpy(get_action(naction))
-                sampled_actions_msg = Float32MultiArray()
-                sampled_actions_msg.data = np.concatenate((np.array([0]), naction.flatten()))
-                print("published sampled actions")
-                sampled_actions_pub.publish(sampled_actions_msg)
-                naction = naction[0] 
-                chosen_waypoint = naction[args.waypoint]
-            elif (len(context_queue) > model_params["context_size"]):
+        if joy_enable is not None:
+            chosen_waypoint = np.zeros(4)
+            chosen_distance = 0
+            if len(context_queue) > model_params["context_size"]:
                 start = max(closest_node - args.radius, 0)
                 end = min(closest_node + args.radius + 1, goal_node)
                 distances = []
@@ -337,21 +270,22 @@ def main(args: argparse.Namespace):
                         sys.exit(0)
 
 
-        #chosen_waypoint[0] *= 4
-        #chosen_waypoint[1] *= 4
-        print(chosen_waypoint, chosen_distance)
-        # RECOVERY MODE
-        if model_params["normalize"]:
-            chosen_waypoint[:2] *= (MAX_V / RATE)
-        waypoint_msg = Float32MultiArray()
-        waypoint_msg.data = chosen_waypoint
-        waypoint_pub.publish(waypoint_msg)
-        
-        # comment to only issue one image goal
-        #reached_goal = closest_node == goal_node
-        #goal_pub.publish(reached_goal)
-        #if reached_goal:
-        #    print("Reached goal! Stopping...")
+            #chosen_waypoint[0] *= 4
+            #chosen_waypoint[1] *= 4
+            print(chosen_waypoint, chosen_distance)
+            # RECOVERY MODE
+            if model_params["normalize"]:
+                chosen_waypoint[:2] *= (MAX_V / RATE)
+            waypoint_msg = Float32MultiArray()
+            waypoint_msg.data = chosen_waypoint
+            waypoint_pub.publish(waypoint_msg)
+            
+            # comment to only issue one image goal
+            #reached_goal = closest_node == goal_node
+            #goal_pub.publish(reached_goal)
+            #if reached_goal:
+            #    print("Reached goal! Stopping...")
+            
         rate.sleep()
 
 

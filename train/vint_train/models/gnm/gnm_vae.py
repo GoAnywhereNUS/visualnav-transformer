@@ -165,22 +165,15 @@ class GNM_VAE_Inference(object):
         self.kl_divergence = kl_divergence()
         self.last_pred = self.DEFAULT_OUTPUT
         self.last_kl = self.DEFAULT_KL
-        self.ticks_count = 0
-        self.last_intent = None
+        self.ticks_count = -1
         self.gap_count = -1
 
         self.my_filter = KalmanFilter(dim_x=1, dim_z=1)
         self.init_filter = True
-        self.window_length = 40
-        self.threshold = 10
-
         self.detect_flag = False
-        self.filtered_kl_cache = deque(maxlen=self.window_length)  #save filtered kl
-        self.kl_cache = deque(maxlen=self.window_length)
 
-        self.kl_base = 0
-        self.action_length = 20
-        self.action_cache = deque(maxlen=self.action_length)
+        self.max_backtrack_step = 20
+        self.action_cache = deque(maxlen=self.max_backtrack_step)
         self.backtrack = True
         self.backtrack_step = -1
         self.rotate = True
@@ -203,14 +196,36 @@ class GNM_VAE_Inference(object):
         self.recovery_action = self.DEFAULT_OUTPUT
         self.backtrack_keep = False
         self.switch_threshold = 1500
-        self.max_rotate_step = 60
+        self.max_rotate_step = 40
+        self.max_recovery_step = 50
         self.first_pd = True
         self.ask_for_help = False
 
+        self.mean_n1 = np.load('/data/projects/zishuo/FaRe/visualnav-transformer/deployment/calibration/mean_n1_gnm_kl.npy')
+        self.quantile = np.load('/data/projects/zishuo/FaRe/visualnav-transformer/deployment/calibration/quantile_gnm_kl.npy')
+        self.upper_bounds = self.mean_n1 + self.quantile[int(len(self.quantile) * 0.8)]
+        self.recovery_upper_bounds = self.mean_n1 + self.quantile[int(len(self.quantile) * 0.65)]
+        self.cycle = len(self.upper_bounds)
+        
+        print(self.upper_bounds, self.recovery_upper_bounds)
+    
+    def _tick(self):
+        if (self.ticks_count + 1) % self.cycle == 0:
+            self._init_states()
+
+        self.ticks_count += 1
+        self.gap_count += 1
+
+    def _init_states(self):
+        self.ticks_count = -1
+        self.gap_count = -1
+        self.init_filter = True
+        print(f'filter initialized and ticks count reset')
+
     def __call__(
         self, obs_img: torch.tensor, goal_img: torch.tensor, yaw: float, image_vis
-    ):
-        # self.gap_count += 1
+    ): 
+        self._tick()
 
         key = self._getKey()
         if key == ' ':
@@ -222,8 +237,6 @@ class GNM_VAE_Inference(object):
         if self.detect_flag:
             self.recovery_step += 1
             if self.recovery_step == 0:
-                d_ = itertools.islice(self.kl_cache, 0, 10)
-                self.kl_base = sum(d_) / 10
                 self.yaw_base = yaw
             # left, mid, right = self._split_image(obs_img)
             # self.left_raw, self.mid_raw, self.right_raw = self.resize_raw(left), self.resize_raw(mid), self.resize_raw(right)
@@ -238,10 +251,6 @@ class GNM_VAE_Inference(object):
             dist_pred, action_pred, mu, logvar = self.model(obs_img, goal_img)
             kl = self.kl_divergence(mu, logvar)
 
-        # check gap
-        # if self.gap_count % self.interval == 0:
-        #     self.last_pred = (dist_pred, action_pred)
-        #     self.last_kl = kl
         kl = kl[-1]
         filtered_kl = self._filter_kl(kl)
         print(kl.item(), filtered_kl)
@@ -251,8 +260,7 @@ class GNM_VAE_Inference(object):
         return torch.chunk(obs_img, 3, dim=2)
 
     def _recovery_policy(self, obs, goal, yaw, image_vis):
-        print("Anomaly Detected!")
-        print("Base value" + str(self.kl_base))
+        # print("Anomaly Detected!")
         distances, waypoints, mu, logvar = self.activations_and_grads(obs, goal)
         self.model.zero_grad()
         kl = self.kl_divergence(mu, logvar)
@@ -265,10 +273,9 @@ class GNM_VAE_Inference(object):
 
         raw_img = image_vis
         raw_img = raw_img.resize((85, 64))
-        visualisation, count_left, count_mid, count_right = show_cam_on_image(np.asarray(raw_img) / 255, grayscale_cam,
-                                                                    use_rgb=True)
-        cv2.putText(visualisation, str(count_left) + "   " + str(count_mid) + "    " + str(count_right), (5, 5),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255))
+        visualisation, count_left, count_mid, count_right = show_cam_on_image(np.asarray(raw_img) / 255, grayscale_cam, use_rgb=True)
+        # cv2.putText(visualisation, str(count_left) + "   " + str(count_mid) + "    " + str(count_right), (5, 5),
+                    # cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255))
         #cv2.imshow('localisation', visualisation)
         
         if count_left > self.switch_threshold and count_mid > self.switch_threshold and count_right > self.switch_threshold:
@@ -277,7 +284,7 @@ class GNM_VAE_Inference(object):
             if not self.backtrack_keep:
                 self.backtrack_step += 1
             # Maximum step, fail
-            if self.backtrack_step >= self.action_length:
+            if self.backtrack_step >= self.max_backtrack_step:
                 self.backtrack = False
             else:
                 self.backtrack = True
@@ -297,7 +304,7 @@ class GNM_VAE_Inference(object):
             elif count_right <= count_left and count_right <= count_mid:
                 action_mode = 'right'
 
-        print(action_mode)
+        print("action: " + action_mode)
         print(count_left, count_mid, count_right)
         
         if self.backtrack_keep:
@@ -307,14 +314,23 @@ class GNM_VAE_Inference(object):
 
         if action_mode != 'mid':
             self.first_pd = True
+        
+        if self.rotate_step % 10 == 0:
+            self.backtrack = True
+            self.rotate = False
        
+        if self.ask_for_help or self.recovery_step >= self.max_recovery_step:
+            action_mode = 'ask_for_help'
+            self.rotate = False
+            self.backtrack = False
+
         kl = kl.item()
         # backtrack
         if self.backtrack:
             # Success
-            if kl < self.kl_base:
+            if kl < self.recovery_upper_bounds[self.ticks_count]:
+                print(f"Recover by backtracking, use {self.recovery_step} steps")
                 self._init_detection()
-                print("Recover by backtracking")
                 self.recovery_action = (0, 0)
             else:
                 # back to base_yaw then backtrack
@@ -324,7 +340,7 @@ class GNM_VAE_Inference(object):
                 if dist_yaw < -180:
                     dist_yaw += 360
 
-                if abs(dist_yaw) > 10:
+                if abs(dist_yaw) > 5:
                     self.backtrack_keep = True
                     if dist_yaw > 0:
                         self.recovery_action = (0, -1 * self.W_RECOVER)
@@ -332,15 +348,19 @@ class GNM_VAE_Inference(object):
                         self.recovery_action = (0, self.W_RECOVER)
                 else:
                     # Backtrack policy
-                    self.recovery_action = (-1 * self.action_cache[-1-self.backtrack_step][0], -1 * self.action_cache[-1-self.backtrack_step][1])
+                    if len(self.action_cache) > 0:
+                        action_last = self.action_cache.pop()
+                    else:
+                        action_last = (0.25, 0)
+                    self.recovery_action = (-1 * action_last[0], -1 * action_last[1])
                     self.yaw_base = yaw
                     self.backtrack_keep = False
         # rotate
         elif self.rotate:
             # Success
-            if kl < self.kl_base:
+            if kl < self.recovery_upper_bounds[self.ticks_count]:
+                print(f"Recover by rotation, use {self.recovery_step} steps")
                 self._init_detection()
-                print("Recover by rotation")
                 self.recovery_action = (0, 0)
             else:
                 # constrain yaw deviation
@@ -378,7 +398,7 @@ class GNM_VAE_Inference(object):
                     elif action_mode == 'right':
                         self.recovery_action = (0, -1 * self.W_RECOVER)
         else:
-            print("Asking for Help!!!!!!!")
+            print(f"Asking for Help, use {self.recovery_step} steps")
             #self._init_detection()
             self.recovery_action = (0, 0)
             self.ask_for_help = True
@@ -390,7 +410,6 @@ class GNM_VAE_Inference(object):
         self.recovery_action = self.DEFAULT_OUTPUT
         self.detect_flag = False
         self.recovery_step = -1
-        self.kl_base = 0
         self.yaw_base = 0
         self.backtrack = True
         self.backtrack_step = -1
@@ -399,14 +418,9 @@ class GNM_VAE_Inference(object):
         self.w_recover = self.W_RECOVER
         self.kl_rotate_last = 0
         self.kl_rotate_cache = []
-        self.kl_cache = deque(maxlen=self.window_length)
-        self.filtered_kl_cache = deque(maxlen=self.window_length)
-        self.action_cache = deque(maxlen=self.action_length)
+        self.action_cache = deque(maxlen=self.max_backtrack_step)
 
-    def _init_states(self):
-        self.model.reset_states()
-        self.ticks_count = 0
-        print(f'states initialized and ticks count reset')
+        self._init_states()
 
     def _init_kalman(self, x):
         self.my_filter = KalmanFilter(dim_x=1, dim_z=1)
@@ -422,22 +436,14 @@ class GNM_VAE_Inference(object):
         if self.init_filter:
             self._init_kalman(kl)
             self.init_filter = False
-            self.filtered_kl_cache = deque(maxlen=self.window_length)
-            self.filtered_kl_cache.append(kl)
             return kl.item()
 
         self.my_filter.predict()
         self.my_filter.update(kl)
         x = self.my_filter.x
-        self.filtered_kl_cache.append(x)
-        self.kl_cache.append(kl.item())
 
-        accum_gradient = 0
         if not self.detect_flag:
-            if len(self.filtered_kl_cache) == self.window_length:
-                accum_gradient = self.filtered_kl_cache[-1] - self.filtered_kl_cache[0]
-            if accum_gradient > self.threshold:
-                #if self.last_intent == 0:
+            if x > self.upper_bounds[self.ticks_count]:
                 self.detect_flag = True
         return x.item()
 
