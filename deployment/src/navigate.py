@@ -151,7 +151,7 @@ def main(args: argparse.Namespace):
     goal_img_id = 0
     # navigation loop
     while not rospy.is_shutdown():
-        if joy_enable is not None:
+        if joy_enable:
             chosen_waypoint = np.zeros(4)
             chosen_distance = 0
             if len(context_queue) > model_params["context_size"]:

@@ -227,11 +227,6 @@ class GNM_VAE_Inference(object):
     ): 
         self._tick()
 
-        key = self._getKey()
-        if key == ' ':
-            self._init_detection()
-            print("reset detection")
-        
         #self.detect_flag = True
         # recovery mode      
         if self.detect_flag:
@@ -446,15 +441,3 @@ class GNM_VAE_Inference(object):
             if x > self.upper_bounds[self.ticks_count]:
                 self.detect_flag = True
         return x.item()
-
-    def _getKey(self):
-        settings = termios.tcgetattr(sys.stdin)
-        tty.setraw(sys.stdin.fileno())
-        rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
-        if rlist:
-            key = sys.stdin.read(1)
-        else:
-            key = ''
-
-        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
-        return key
