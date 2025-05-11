@@ -45,9 +45,9 @@ for traj_idx in range(data.shape[1]):
         data_new[i, traj_idx] = x
 
 data = data_new
-n1_data = data[:, :152]
+n1_data = data[:, :int(data.shape[1] / 2)]
 mean_n1 = n1_data.mean(axis=1)
-n2_data = data[:, 152:]
+n2_data = data[:, int(data.shape[1] / 2):]
 n2_data = n2_data - mean_n1[:, np.newaxis]
 max_timestep = n2_data.max(axis=0)
 sorted_idx = np.argsort(max_timestep)
