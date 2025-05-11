@@ -133,8 +133,7 @@ def main(args: argparse.Namespace):
         WAYPOINT_TOPIC, Float32MultiArray, queue_size=1)  
     goal_pub = rospy.Publisher("/gnm/reached_goal", Bool, queue_size=1)
 
-    # vel_pub = rospy.Publisher(VEL_TOPIC, Twist, queue_size=1)
-    vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
+    vel_pub = rospy.Publisher(VEL_TOPIC, Twist, queue_size=1)
     gradcam_pub = rospy.Publisher("/gradcam", Image, queue_size=5)
     cv_bridge = CvBridge()
     if model_params["model_type"] == "gnm_vae":
