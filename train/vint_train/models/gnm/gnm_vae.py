@@ -233,7 +233,7 @@ class GNM_VAE_Inference(object):
             self._init_detection()
             print('reset detection')
 
-        #self.detect_flag = True
+        #self.detect_flag = False
         # recovery mode      
         if self.detect_flag:
             self.recovery_step += 1
@@ -351,7 +351,7 @@ class GNM_VAE_Inference(object):
                     if len(self.action_cache) > 0:
                         action_last = self.action_cache.pop()
                     else:
-                        action_last = (0.25, 0)
+                        action_last = (0.75, 0)
                     self.recovery_action = (-1 * action_last[0], -1 * action_last[1])
                     self.yaw_base = yaw
                     self.backtrack_keep = False
@@ -370,7 +370,7 @@ class GNM_VAE_Inference(object):
                 if dist_yaw < -180:
                     dist_yaw += 360
 
-                if abs(dist_yaw) > 30:
+                if abs(dist_yaw) > 90:
                     if dist_yaw > 0:
                         self.recovery_action = (0, -1 * self.W_RECOVER)
                     else:

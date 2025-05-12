@@ -262,8 +262,8 @@ class GNM:
                             sys.exit(0)
 
 
-                #chosen_waypoint[0] *= 4
-                #chosen_waypoint[1] *= 4
+                #chosen_waypoint[0] *= 6
+                #chosen_waypoint[1] *= 6
                 #print(chosen_waypoint, chosen_distance)
                 # RECOVERY MODE
                 if self.model_params["normalize"]:
