@@ -173,7 +173,7 @@ class GNM_VAE_Inference(object):
         self.init_filter = True
         self.detect_flag = False
 
-        self.max_backtrack_step = 20
+        self.max_backtrack_step = 50
         self.action_cache = deque(maxlen=self.max_backtrack_step)
         self.backtrack = True
         self.backtrack_step = -1

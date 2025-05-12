@@ -141,7 +141,6 @@ class GNM:
     def run(self):
         while not rospy.is_shutdown():
             if self.joy_enable:
-                print(self.inference.action_cache)
                 chosen_waypoint = np.zeros(4)
                 chosen_distance = 0
                 if len(self.context_queue) > self.model_params["context_size"]:
@@ -169,7 +168,7 @@ class GNM:
                         if len(output) == 5:
                             # Output from recovery strategy
                             (v, w), _, _, visualisation, help = output
-                            print("Recovery action: ", v, w)
+                            #print("Recovery action: ", v, w)
                             distances, waypoints = None, None
                             if help:
                                 print("Need human intervention. STOPPING!")
