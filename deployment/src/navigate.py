@@ -168,7 +168,7 @@ class GNM:
                         if len(output) == 5:
                             # Output from recovery strategy
                             (v, w), _, _, visualisation, help = output
-                            #print("Recovery action: ", v, w)
+                            print("Recovery action: ", v, w)
                             distances, waypoints = None, None
                             if help:
                                 print("Need human intervention. STOPPING!")

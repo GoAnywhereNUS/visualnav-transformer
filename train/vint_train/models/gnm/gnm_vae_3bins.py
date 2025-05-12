@@ -160,7 +160,7 @@ class GNM_VAE_Inference(object):
         #######################################################################################
         self.DEFAULT_OUTPUT = (0.0, 0.0)
         self.DEFAULT_KL = 0
-        self.W_RECOVER = 0.5
+        self.W_RECOVER = 0.3
 
         self.kl_divergence = kl_divergence()
         self.last_pred = self.DEFAULT_OUTPUT
@@ -196,7 +196,7 @@ class GNM_VAE_Inference(object):
         
         self.recovery_action = self.DEFAULT_OUTPUT
         self.backtrack_keep = False
-        self.switch_threshold = 1000
+        self.switch_threshold = 600
         self.max_rotate_step = 40
         self.max_recovery_step = 50
         self.first_pd = True
@@ -275,12 +275,12 @@ class GNM_VAE_Inference(object):
 
         raw_img = image_vis
         raw_img = raw_img.resize((85, 64))
-        visualisation, count_left, count_right = show_cam_on_image(np.asarray(raw_img) / 255, grayscale_cam, use_rgb=True)
+        visualisation, count_left, count_mid, count_right = show_cam_on_image(np.asarray(raw_img) / 255, grayscale_cam, use_rgb=True)
         # cv2.putText(visualisation, str(count_left) + "   " + str(count_mid) + "    " + str(count_right), (5, 5),
                     # cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255))
         #cv2.imshow('localisation', visualisation)
         
-        if count_left > self.switch_threshold and count_right > self.switch_threshold:
+        if count_left > self.switch_threshold and count_mid > self.switch_threshold and count_right > self.switch_threshold:
             action_mode = 'backtrack'
             self.rotate = False
             if not self.backtrack_keep:
@@ -299,13 +299,15 @@ class GNM_VAE_Inference(object):
             else:
                 self.rotate = True
 
-            if count_left <= count_right:
+            if count_left <= count_mid and count_left <= count_right:
                 action_mode = 'left'
-            elif count_right <= count_left:
+            elif count_mid <= count_left and count_mid <= count_right:
+                action_mode = 'mid'
+            elif count_right <= count_left and count_right <= count_mid:
                 action_mode = 'right'
 
         print("action: " + action_mode)
-        print(count_left, count_right)
+        print(count_left, count_mid, count_right)
         
         if self.backtrack_keep:
             action_mode = 'backtrack'

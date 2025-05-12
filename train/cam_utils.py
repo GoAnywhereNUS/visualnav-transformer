@@ -192,9 +192,8 @@ def show_cam_on_image(img: np.ndarray,
     # count_anomaly_mid = np.count_nonzero(thresh[:, 28:46] == 255)
     # count_anomaly_right = np.count_nonzero(thresh[:, 46:85] == 255)
 
-    count_anomaly_left = np.sum(gray[:, 0:28]) / 255
-    count_anomaly_mid = np.sum(gray[:, 28:46]) / 255
-    count_anomaly_right = np.sum(gray[:, 46:85]) / 255
+    count_anomaly_left = np.sum(gray[:, 0:43]) / 255
+    count_anomaly_right = np.sum(gray[:, 43:85]) / 255
     
     heatmap = cv.applyColorMap(np.uint8(255 * mask), colormap)
     if use_rgb:
@@ -212,4 +211,5 @@ def show_cam_on_image(img: np.ndarray,
     # for c in cnts:
     #     x, y, w, h = cv.boundingRect(c)
     #     cv.rectangle(img, (x, y), (x + w, y + h), (36, 255, 12), 2)
-    return img, count_anomaly_left, count_anomaly_mid, count_anomaly_right
+    return img, count_anomaly_left, count_anomaly_right
+
