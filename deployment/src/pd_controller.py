@@ -24,6 +24,8 @@ EPS = 1e-8
 WAYPOINT_TIMEOUT = 1 # seconds # TODO: tune this
 FLIP_ANG_VEL = np.pi/4
 
+VEL_CACHE_TOPIC = "/vel_cache"
+
 # GLOBALS
 vel_msg = Twist()
 waypoint = ROSData(WAYPOINT_TIMEOUT, name="waypoint")
@@ -80,6 +82,9 @@ def main():
 	waypoint_sub = rospy.Subscriber(WAYPOINT_TOPIC, Float32MultiArray, callback_drive, queue_size=1)
 	reached_goal_sub = rospy.Subscriber(REACHED_GOAL_TOPIC, Bool, callback_reached_goal, queue_size=1)
 	vel_out = rospy.Publisher(VEL_TOPIC, Twist, queue_size=1)
+	
+	vel_cache_pub = rospy.Publisher(VEL_CACHE_TOPIC, Twist, queue_size=1)
+
 	rate = rospy.Rate(RATE)
 	print("Registered with master node. Waiting for waypoints...")
 	while not rospy.is_shutdown():
@@ -95,6 +100,8 @@ def main():
 			vel_msg.linear.x = v
 			vel_msg.angular.z = w
 			print(f"publishing new vel: {v}, {w}")
+			vel_cache_pub.publish(vel_msg)
+
 		vel_out.publish(vel_msg)
 		rate.sleep()
 	

@@ -52,6 +52,7 @@ class GNM:
     IMAGE_TOPIC = "/rs_mid/color/image_raw"
     WAYPOINT_TOPIC = "/gnm/waypoint"
     VEL_TOPIC = robot_config["vel_navi_topic"]
+    VEL_CACHE_TOPIC = "/vel_cache"
     print("Publishing to:", IMAGE_TOPIC, WAYPOINT_TOPIC, SAMPLED_ACTIONS_TOPIC)
 
     def __init__(self, args):
@@ -123,8 +124,8 @@ class GNM:
         self.image_curr_msg = rospy.Subscriber(
             self.IMAGE_TOPIC, Image, self.callback_obs, queue_size=1)
         if self.model_params["model_type"] == "gnm_vae":
-            self.vel_sub = rospy.Subscriber(
-                self.VEL_TOPIC, 
+            self.vel_cache_sub = rospy.Subscriber(
+                self.VEL_CACHE_TOPIC, 
                 Twist, 
                 lambda msg: self.inference.action_cache.append((msg.linear.x, msg.angular.z)),
                 queue_size=1
@@ -198,7 +199,7 @@ class GNM:
                         vel_msg = Twist()
                         vel_msg.linear.x = v
                         vel_msg.angular.z = w                    
-                        # vel_pub.publish(vel_msg)
+                        self.vel_pub.publish(vel_msg)
                         self.rate.sleep()
                         continue
 
@@ -272,6 +273,8 @@ class GNM:
                 waypoint_msg.data = chosen_waypoint
                 self.waypoint_pub.publish(waypoint_msg)
                 
+
+
                 # comment to only issue one image goal
                 #reached_goal = closest_node == goal_node
                 #goal_pub.publish(reached_goal)

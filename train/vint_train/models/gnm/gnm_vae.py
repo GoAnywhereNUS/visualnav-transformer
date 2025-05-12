@@ -167,6 +167,7 @@ class GNM_VAE_Inference(object):
         self.last_kl = self.DEFAULT_KL
         self.ticks_count = -1
         self.gap_count = -1
+        self.detect_ticks_count = -1
 
         self.my_filter = KalmanFilter(dim_x=1, dim_z=1)
         self.init_filter = True
@@ -238,6 +239,7 @@ class GNM_VAE_Inference(object):
             self.recovery_step += 1
             if self.recovery_step == 0:
                 self.yaw_base = yaw
+                self.detect_ticks_count = self.ticks_count
             # left, mid, right = self._split_image(obs_img)
             # self.left_raw, self.mid_raw, self.right_raw = self.resize_raw(left), self.resize_raw(mid), self.resize_raw(right)
             obs_img = obs_img[-1].unsqueeze(0)
@@ -328,7 +330,7 @@ class GNM_VAE_Inference(object):
         # backtrack
         if self.backtrack:
             # Success
-            if kl < self.recovery_upper_bounds[self.ticks_count]:
+            if kl < self.recovery_upper_bounds[self.detect_ticks_count]:
                 print(f"Recover by backtracking, use {self.recovery_step} steps")
                 self._init_detection()
                 self.recovery_action = (0, 0)
@@ -358,7 +360,7 @@ class GNM_VAE_Inference(object):
         # rotate
         elif self.rotate:
             # Success
-            if kl < self.recovery_upper_bounds[self.ticks_count]:
+            if kl < self.recovery_upper_bounds[self.detect_ticks_count]:
                 print(f"Recover by rotation, use {self.recovery_step} steps")
                 self._init_detection()
                 self.recovery_action = (0, 0)
